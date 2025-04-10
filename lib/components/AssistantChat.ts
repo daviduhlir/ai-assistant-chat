@@ -63,7 +63,7 @@ export class AssistantChat {
 
   - To call a system method:
     Start your response with the line \`TARGET system\`, followed by the method call on the next line in the format:
-    \`methodName(param1, param2, ...)\`.
+    \`methodName(param1, param2, ...)\`. Result from this function will be returned to you in the next message with first line \`RESULT\`.
 
   - To respond to the user:
     Start your response with the line \`TARGET user\`, followed by your message on the next lines.
@@ -71,7 +71,7 @@ export class AssistantChat {
   This is the list of methods you can call:
   \`\`\`markdown
   ${Object.keys(callables)
-    .map(key => `- ${key}: ${callables[key].signature} - ${callables[key].description}`)
+    .map(key => `- ${callables[key].signature} - ${callables[key].description}`)
     .join('\n')}
   \`\`\`
 
@@ -158,7 +158,7 @@ export class AssistantChat {
           const callParsed = AssistantChat.parseMethodCall(parsed)
           try {
             const result = await this.action(callParsed)
-            tempMessages.push({ role: 'user', content: result })
+            tempMessages.push({ role: 'user', content: `RESULT\n${result}` })
           } catch (actionError) {
             tempMessages.push({ role: 'user', content: `There was some error when calling action. ${actionError.message}` })
           }
@@ -307,7 +307,7 @@ export class AssistantChat {
     // Extract parameter types using Reflect metadata
     const paramTypes = Reflect.getMetadata('design:paramtypes', target, memberName) || [];
     const signature = parameters
-      .map((name, index) => `${name}: ${paramTypes[index]?.name || 'any'}`)
+      .map((name, index) => `${paramTypes[index]?.name || 'any'}`)
       .join(', ');
 
     return `${memberName}(${signature})`;

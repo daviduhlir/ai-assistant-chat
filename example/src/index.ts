@@ -3,13 +3,19 @@ import { AssistantChat } from '@david.uhlir/ai-assistant-chat'
 
 async function main() {
   // Create an instance of OpenAI client
-  const openAI = new OpenAI({ apiKey: 'your-api-key' })
+  const openAI = new OpenAI({ apiKey: 'your-secret-key' })
 
   // Register a callable method
   class MyChat extends AssistantChat {
-    @AssistantChat.Callable('Greets a user by name.')
-    public async greet(name: string): Promise<string> {
-      return `Hello, ${name}!`
+    @AssistantChat.Callable('Get magic number.')
+    public async getMagicNumber(): Promise<string> {
+      return `42`
+    }
+
+    @AssistantChat.Callable('Reverse any string from input.')
+    public async reverseWord(input: string): Promise<string> {
+      console.log('=Reverse method used=')
+      return input.split('').reverse().join('')
     }
   }
 
@@ -17,8 +23,11 @@ async function main() {
   const chat = new MyChat(openAI, 'You are a helpful assistant.')
 
   // Send a prompt to the assistant
-  const response = await chat.prompt('What is my user ID?', 5)
-  console.log(response)
+  const text = 'Hello, can you tell me magic number?'
+  //const text = 'Hello, can you reverse the word "hello"?'
+  const response = await chat.prompt(text)
+  console.log('->', text)
+  console.log('<-', response)
 }
 
 main()

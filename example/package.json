@@ -5,18 +5,15 @@
   "main": "./build/index.js",
   "scripts": {
     "build": "rimraf ./build && tsc",
-    "start": "npm run build && npm run start:master",
-    "start:forks": "npm run build && node --enable-source-maps ./build/forks.js",
-    "start:forksTimeout": "npm run build && node --enable-source-maps ./build/forksTimeout.js",
-    "start:master": "npm run build && node --enable-source-maps ./build/master.js",
-    "inspect": "npm run build && node --enable-source-maps --inspect ./build/master.js"
+    "start": "npm run build && node --enable-source-maps ./build/index.js",
+    "inspect": "npm run build && node --enable-source-maps --inspect ./build/index.js"
   },
   "author": "David Uhlíř",
   "license": "ISC",
   "dependencies": {
     "@david.uhlir/ai-assistant-chat": "file:..",
     "rimraf": "^2.6.2",
-    "typescript": "^3.8.3"
+    "typescript": "^5.5.4"
   },
   "devDependencies": {
     "@types/node": "^18.11.9"

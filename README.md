@@ -19,26 +19,26 @@ The `AssistantChat` class provides a framework for managing interactions with Op
 ### Example
 
 ```typescript
-import OpenAI from 'openai';
-import { AssistantChat } from './AssistantChat';
+import OpenAI from 'openai'
+import { AssistantChat } from './AssistantChat'
 
 // Create an instance of OpenAI client
-const openAI = new OpenAI({ apiKey: 'your-api-key' });
+const openAI = new OpenAI({ apiKey: 'your-api-key' })
 
 // Register a callable method
 class MyChat extends AssistantChat {
   @AssistantChat.Callable('Greets a user by name.')
   public async greet(name: string): Promise<string> {
-    return `Hello, ${name}!`;
+    return `Hello, ${name}!`
   }
 }
 
 // Create an instance of AssistantChat
-const chat = new MyChat(openAI, 'You are a helpful assistant.');
+const chat = new MyChat(openAI, 'You are a helpful assistant.')
 
 // Send a prompt to the assistant
-const response = await chat.prompt('What is my user ID?', 5);
-console.log(response);
+const response = await chat.prompt('What is my user ID?', 5)
+console.log(response)
 ```
 
 ---
@@ -52,7 +52,7 @@ constructor(
   openAI: OpenAI,
   systemInstructions: string,
   messages?: ChatMessage[],
-  options?: { model: string; temperature: number }
+  options?: { model: string temperature: number }
 )
 ```
 
@@ -99,7 +99,7 @@ public static Callable(description: string)
   ```typescript
   @AssistantChat.Callable('Greets a user by name.')
   public async greet(name: string): Promise<string> {
-    return `Hello, ${name}!`;
+    return `Hello, ${name}!`
   }
   ```
 
@@ -129,8 +129,8 @@ protected BASE_PROMPT(callables: { [name: string]: ChatCallable }, roleInstructi
 
 ```typescript
 export interface ChatMessage {
-  role: string;
-  content: string;
+  role: string
+  content: string
 }
 ```
 
@@ -142,10 +142,10 @@ export interface ChatMessage {
 
 ```typescript
 export type ChatCallable = {
-  reference: (...params: any[]) => Promise<any>;
-  signature: string;
-  description: string;
-};
+  reference: (...params: any[]) => Promise<any>
+  signature: string
+  description: string
+}
 ```
 
 - **Description**: Represents a callable method that the assistant can invoke. Includes:
