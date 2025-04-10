@@ -1,0 +1,43 @@
+{
+  "name": "@david.uhlir/ai-assitant-chat",
+  "version": "0.0.1",
+  "description": "Chat helper for AI assistants with ability to call methods",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "rimraf ./dist && tsc",
+    "prettier-check": "prettier-check --config .prettierrc.json 'lib/**/*.ts'",
+    "prettier-format": "prettier --config .prettierrc.json 'lib/**/*.ts' --write",
+    "test": "npm run build && ts-mocha --timeout 10000 --type-check -p ./tsconfig.json tests/**/*.spec.ts",
+    "test:release": "npm run build && ts-mocha --timeout 10000 --type-check -p ./tsconfig.json tests/**/*.spec.ts",
+    "release": "./scripts/release.sh"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daviduhlir/ai-assitant-chat.git"
+  },
+  "keywords": [
+    "ai",
+    "node",
+    "assistant",
+    "typescript",
+    "chat"
+  ],
+  "author": "David Uhlíř",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/mocha": "^10.0.0",
+    "@types/node": "^18.11.9",
+    "chai": "^4.3.6",
+    "mocha": "^10.0.0",
+    "prettier": "^2.6.2",
+    "prettier-check": "^2.0.0",
+    "rimraf": "^2.6.2",
+    "ts-mocha": "^10.0.0",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "openai": "^4.93.0",
+    "reflect-metadata": "^0.2.2"
+  }
+}
