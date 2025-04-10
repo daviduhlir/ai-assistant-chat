@@ -307,7 +307,7 @@ export class AssistantChat {
     // Extract parameter types using Reflect metadata
     const paramTypes = Reflect.getMetadata('design:paramtypes', target, memberName) || [];
     const signature = parameters
-      .map((name, index) => `${paramTypes[index]?.name || 'any'}`)
+      .map((name, index) => `${name}: ${paramTypes[index]?.name || 'any'}`)
       .join(', ');
 
     return `${memberName}(${signature})`;
