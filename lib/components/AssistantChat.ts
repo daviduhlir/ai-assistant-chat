@@ -89,7 +89,7 @@ export class AssistantChat {
    * @brief Decorator to register a method in the `callables` object.
    * @param description A description of the method being registered.
    */
-  public static Callable(description: string) {
+  public static Callable(description: string, signature?: string) {
     return function <T extends { [key: string]: any }>(
       target: T,
       memberName: keyof T,
@@ -102,7 +102,7 @@ export class AssistantChat {
       let callables = Reflect.getMetadata(isCallableKey, target) || {};
       callables[memberName] = {
         reference: descriptor.value,
-        signature: AssistantChat.extractMethodSignature(target, memberName as string),
+        signature: signature ? signature : AssistantChat.extractMethodSignature(target, memberName as string),
         description,
       }
       Reflect.defineMetadata(isCallableKey, callables, target);
