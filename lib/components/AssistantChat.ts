@@ -90,14 +90,22 @@ export class AssistantChat {
    * @param description A description of the method being registered.
    */
   public static Callable(description: string) {
-    return function (target: any, memberName: string, descriptor: PropertyDescriptor) {
-      let callables = Reflect.getMetadata(isCallableKey, target) || {}
+    return function <T extends { [key: string]: any }>(
+      target: T,
+      memberName: keyof T,
+      descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<string>>
+    ) {
+      if (typeof descriptor.value !== 'function') {
+        throw new Error(`@Callable can only be applied to methods.`);
+      }
+
+      let callables = Reflect.getMetadata(isCallableKey, target) || {};
       callables[memberName] = {
         reference: descriptor.value,
-        signature: AssistantChat.extractMethodSignature(target, memberName),
+        signature: AssistantChat.extractMethodSignature(target, memberName as string),
         description,
       }
-      Reflect.defineMetadata(isCallableKey, callables, target)
+      Reflect.defineMetadata(isCallableKey, callables, target);
     }
   }
 
