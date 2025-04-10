@@ -22,23 +22,21 @@ The `AssistantChat` class provides a framework for managing interactions with Op
 import OpenAI from 'openai'
 import { AssistantChat } from './AssistantChat'
 
-// Create an instance of OpenAI client
-const openAI = new OpenAI({ apiKey: 'your-api-key' })
+// Create an instance of Chat
+const openAI = new OpenAI({ apiKey: 'your-api-key' });
 
 // Register a callable method
-class MyChat extends AssistantChat {
-  @AssistantChat.Callable('Greets a user by name.')
-  public async greet(name: string): Promise<string> {
-    return `Hello, ${name}!`
+class MyChat extends Chat {
+  @Chat.Callable('Get user ID by name.')
+  public async getUserId(name: string): Promise<string> {
+    return `42`;
   }
 }
+const chat = new MyChat(openAI, 'You are a helpful assistant.');
 
-// Create an instance of AssistantChat
-const chat = new MyChat(openAI, 'You are a helpful assistant.')
-
-// Send a prompt to the assistant
-const response = await chat.prompt('What is my user ID?', 5)
-console.log(response)
+// Send a prompt
+const response = await chat.prompt('What is my user ID?', 5);
+console.log(response);
 ```
 
 ---

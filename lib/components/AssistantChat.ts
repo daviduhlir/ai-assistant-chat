@@ -15,15 +15,15 @@
  * @example
  * // Create an instance of Chat
  * const openAI = new OpenAI({ apiKey: 'your-api-key' });
- * const chat = new Chat(openAI, 'You are a helpful assistant.');
  *
  * // Register a callable method
  * class MyChat extends Chat {
- *   @Chat.Callable('Greets a user by name.')
- *   public async greet(name: string): Promise<string> {
- *     return `Hello, ${name}!`;
+ *   @Chat.Callable('Get user ID by name.')
+ *   public async getUserId(name: string): Promise<string> {
+ *     return `42`;
  *   }
  * }
+ * const chat = new MyChat(openAI, 'You are a helpful assistant.');
  *
  * // Send a prompt
  * const response = await chat.prompt('What is my user ID?', 5);
