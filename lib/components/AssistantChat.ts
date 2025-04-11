@@ -123,6 +123,11 @@ export class AssistantChat {
    * @throws An error if the maximum number of iterations is exceeded.
    */
   public async prompt(prompt: string, limit: number = 10): Promise<string> {
+    if (this.isBussy) {
+      throw new Error(`Assistant is busy`)
+    }
+    const messages = [...this.messages]
+    this.isBussy = true
     this.messages.push({ role: 'user', content: prompt })
 
     const tempMessages: ChatMessage[] = []
@@ -131,7 +136,7 @@ export class AssistantChat {
       itterations++
       const response = await this.aiProvider.executeChat([
         { role: 'system', content: this.BASE_PROMPT(this.callables, this.systemInstructions) },
-        ...this.messages,
+        ...messages,
         ...tempMessages,
       ])
       tempMessages.push({ role: response.role, content: response.content })
@@ -139,7 +144,9 @@ export class AssistantChat {
       const extracted = ResponsesUtils.extractTargetAndBody(response.content)
 
       if (extracted.target === 'user') {
-        this.messages.push({ role: response.role, content: extracted.body })
+        messages.push({ role: response.role, content: extracted.body })
+        this.messages = messages
+        this.isBussy = false
         return extracted.body
       } else if (extracted.target === 'system') {
         try {
@@ -158,7 +165,7 @@ export class AssistantChat {
         tempMessages.push({ role: 'user', content: `ERROR\nNo target was specified` })
       }
     }
-
+    this.isBussy = false
     throw new Error(`Too many attempts to get a valid response`)
   }
 
@@ -176,11 +183,20 @@ export class AssistantChat {
     })
   }
 
+  /**
+   * @brief Checks if the assistant is currently busy processing a request.
+   * @returns A boolean indicating whether the assistant is busy.
+   */
+  public get bussy() {
+    return this.isBussy
+  }
+
   /***************************************
    *
-   * Internal methods
+   * Internal implementation
    *
    ***************************************/
+  protected isBussy: boolean = false
 
   /**
    * Get all handlers
