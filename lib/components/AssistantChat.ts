@@ -60,7 +60,8 @@ export class AssistantChat {
 
   - To call a system method:
     Start your response with the line \`TARGET system\`, followed by the method call on the next line in the format:
-    \`methodName(param1, param2, ...)\`. Result from this function will be returned to you in the next message with first line \`RESULT\`.
+    \`methodName(param1, param2, ...)\`. Result from this function will be returned to you in the next message with first line \`RESULT\`,
+    in case of error, there will be \`ERROR\` on first line and then some description about that.
 
   - To respond to the user:
     Start your response with the line \`TARGET user\`, followed by your message on the next lines.
@@ -148,11 +149,13 @@ export class AssistantChat {
             const result = await this.action(callParsed)
             tempMessages.push({ role: 'user', content: `RESULT\n${result}` })
           } catch (actionError) {
-            tempMessages.push({ role: 'user', content: `There was some error when calling action. ${actionError.message}` })
+            tempMessages.push({ role: 'user', content: `ERROR\nThere was some error when calling action. ${actionError.message}` })
           }
         } catch (parseError) {
           tempMessages.push({ role: 'user', content: `There was some error when parsing target from your response. ${parseError.message}` })
         }
+      } else {
+        tempMessages.push({ role: 'user', content: `ERROR\nNo target was specified` })
       }
     }
 
