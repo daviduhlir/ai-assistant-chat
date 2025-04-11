@@ -1,1 +1,5 @@
 export * from './components/AssistantChat'
+export * from './components/AIProvider'
+export * from './implementation/OpenAIProvider'
+export * from './implementation/OpenAIAssistantChat'
+export * from './interfaces'

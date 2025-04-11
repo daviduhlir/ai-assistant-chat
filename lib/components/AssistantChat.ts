@@ -30,16 +30,13 @@
  * console.log(response);
  */
 import 'reflect-metadata'
-import OpenAI from 'openai'
-import { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
+import { AIProvider } from './AIProvider'
+import { ChatMessage } from '../interfaces'
+import { FunctionUtils } from '../utils/functions'
+import { ResponsesUtils } from '../utils/responses'
 
 // callbale descriptor
 const isCallableKey = Symbol('isCallable')
-
-export interface ChatMessage {
-  role: string
-  content: string
-}
 
 export type ChatCallable = {
   reference: (...params: any[]) => Promise<any>
@@ -93,38 +90,29 @@ export class AssistantChat {
     return function <T extends { [key: string]: any }>(
       target: T,
       memberName: keyof T,
-      descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<string>>
+      descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<string>>,
     ) {
       if (typeof descriptor.value !== 'function') {
-        throw new Error(`@Callable can only be applied to methods.`);
+        throw new Error(`@Callable can only be applied to methods.`)
       }
 
-      let callables = Reflect.getMetadata(isCallableKey, target) || {};
+      let callables = Reflect.getMetadata(isCallableKey, target) || {}
       callables[memberName] = {
         reference: descriptor.value,
-        signature: signature ? signature : AssistantChat.extractMethodSignature(target, memberName as string),
+        signature: signature ? signature : FunctionUtils.extractMethodSignature(target, memberName as string),
         description,
       }
-      Reflect.defineMetadata(isCallableKey, callables, target);
+      Reflect.defineMetadata(isCallableKey, callables, target)
     }
   }
 
   /**
    * @brief Constructs a new Chat instance.
-   * @param openAI An instance of the OpenAI client.
+   * @param aiProvider An instance of the ai provider client.
    * @param systemInstructions Instructions describing the assistant's role.
    * @param messages A history of chat messages.
-   * @param options Configuration options for the OpenAI model and temperature.
    */
-  constructor(
-    readonly openAI: OpenAI,
-    readonly systemInstructions: string,
-    protected messages: ChatMessage[] = [],
-    protected options: { model: string; temperature: number } = {
-      model: 'gpt-3.5-turbo',
-      temperature: 0.2,
-    },
-  ) {}
+  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, protected messages: ChatMessage[] = []) {}
 
   /**
    * @brief Sends a prompt to the assistant and processes the response.
@@ -140,22 +128,22 @@ export class AssistantChat {
     let itterations = 0
     while (itterations < limit) {
       itterations++
-      const response = await this.executeChat(
-        [{ role: 'system', content: this.BASE_PROMPT(this.callables, this.systemInstructions) }, ...this.messages, ...tempMessages],
-        this.options.model,
-        this.options.temperature,
-      )
+      const response = await this.aiProvider.executeChat([
+        { role: 'system', content: this.BASE_PROMPT(this.callables, this.systemInstructions) },
+        ...this.messages,
+        ...tempMessages,
+      ])
       tempMessages.push({ role: response.role, content: response.content })
 
-      const extracted = AssistantChat.extractTargetAndBody(response.content)
+      const extracted = ResponsesUtils.extractTargetAndBody(response.content)
 
       if (extracted.target === 'user') {
         this.messages.push({ role: response.role, content: extracted.body })
         return extracted.body
       } else if (extracted.target === 'system') {
         try {
-          const parsed = AssistantChat.parseResponse(extracted.body)
-          const callParsed = AssistantChat.parseMethodCall(parsed)
+          const parsed = ResponsesUtils.parseResponse(extracted.body)
+          const callParsed = FunctionUtils.parseMethodCall(parsed)
           try {
             const result = await this.action(callParsed)
             tempMessages.push({ role: 'user', content: `RESULT\n${result}` })
@@ -201,27 +189,6 @@ export class AssistantChat {
   }
 
   /**
-   * @brief Sends a chat message to OpenAI and retrieves the response.
-   * @param messages The list of messages to send.
-   * @param model The OpenAI model to use.
-   * @param temperature The temperature setting for the model.
-   * @returns The assistant's response, including role, content, and token usage.
-   */
-  private async executeChat(messages: ChatMessage[], model: string, temperature: number) {
-    const response = await this.openAI.chat.completions.create({
-      model,
-      temperature,
-      messages: messages as ChatCompletionMessageParam[],
-    })
-
-    return {
-      role: response.choices[0].message.role,
-      content: response.choices[0].message.content,
-      usage: response.usage.total_tokens,
-    }
-  }
-
-  /**
    * @brief Executes a registered callable method based on the assistant's response.
    * @param input An object containing the method name and parameters.
    * @returns The result of the method execution.
@@ -231,85 +198,5 @@ export class AssistantChat {
       return this.callables[input.call].reference.call(this, ...input.parameters)
     }
     return 'Not implemented or not callable'
-  }
-
-  /**
-   * @brief Extracts the target and body from a message.
-   * @param text The input text to parse.
-   * @returns An object containing `target` (string or null) and `body` (message body).
-   */
-  private static extractTargetAndBody(text: string): { target: string | null; body: string } {
-    const match = text.match(/^TARGET\s+([^\n]+)\n([\s\S]*)$/)
-    if (!match) {
-      return { target: null, body: text.trim() }
-    }
-    const target = match[1].trim()
-    const body = match[2].trim()
-    return { target, body }
-  }
-
-  /**
-   * @brief Parses a response from the assistant.
-   * @param text The input text to parse.
-   * @param resultIfNotWrapped Whether to return the raw text if not wrapped in code blocks.
-   * @returns The parsed response or null if invalid.
-   */
-  private static parseResponse(text: string, resultIfNotWrapped: boolean = true): string {
-    const textMatch = text.match(/```(?:markdown|json)?\n([\s\S]+?)\n```/)
-    return textMatch ? textMatch[1].trim() : resultIfNotWrapped ? text : null
-  }
-
-  /**
-   * @brief Parses a method call from text.
-   * @param text The input text to parse.
-   * @returns An object containing `call` (method name) and `parameters` (array of parameters), or null if invalid.
-   * @throws An error if the method call format is invalid or parameters cannot be parsed.
-   */
-  private static parseMethodCall(text: string): { call: string; parameters: any[] } | null {
-    const match = text.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\((.*)\)$/)
-    if (!match) {
-      throw new Error('Invalid method call format')
-    }
-    const call = match[1]
-    const rawParams = match[2]
-    try {
-      const parameters = rawParams ? JSON.parse(`[${rawParams}]`) : []
-      return { call, parameters }
-    } catch (error) {
-      throw new Error('Failed to parse parameters:')
-    }
-  }
-
-  /**
-   * @brief Extracts the method signature using its `toString()` representation and metadata.
-   * @param target The target object containing the method.
-   * @param memberName The name of the method.
-   * @returns The method signature in TypeScript format.
-   */
-  private static extractMethodSignature(target: any, memberName: string): string {
-    const method = target[memberName];
-    if (typeof method !== 'function') {
-      throw new Error(`Method ${memberName} is not a function`);
-    }
-
-    // Extract parameter names from the method's string representation
-    const methodString = method.toString();
-    const match = methodString.match(/\(([^)]*)\)/);
-    if (!match) {
-      return '';
-    }
-    const paramList = match[1];
-    const parameters = paramList
-      .split(',')
-      .map(param => param.trim())
-      .filter(param => param);
-
-    // Extract parameter types using Reflect metadata
-    const paramTypes = Reflect.getMetadata('design:paramtypes', target, memberName) || [];
-    const signature = parameters
-      .map((name, index) => `${name}: ${paramTypes[index]?.name || 'any'}`)
-      .join(', ');
-
-    return `${memberName}(${signature})`;
   }
 }

@@ -1,18 +1,19 @@
 import OpenAI from 'openai'
-import { AssistantChat } from '@david.uhlir/ai-assistant-chat'
+import { OpenAIAssistantChat } from '@david.uhlir/ai-assistant-chat'
 
 async function main() {
   // Create an instance of OpenAI client
-  const openAI = new OpenAI({ apiKey: 'your-secret-key' })
+  const openAI = new OpenAI({ apiKey: process.env.apiKey || 'your-api-key' })
 
   // Register a callable method
-  class MyChat extends AssistantChat {
-    @AssistantChat.Callable('Get magic number.')
+  class MyChat extends OpenAIAssistantChat {
+    @OpenAIAssistantChat.Callable('Get magic number.')
     public async getMagicNumber(): Promise<string> {
+      console.log('=Magic number get used=')
       return `42`
     }
 
-    @AssistantChat.Callable('Reverse any string from input.')
+    @OpenAIAssistantChat.Callable('Reverse any string from input.')
     public async reverseWord(input: string): Promise<string> {
       console.log('=Reverse method used=')
       return input.split('').reverse().join('')

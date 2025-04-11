@@ -1,6 +1,6 @@
 # AssistantChat
 
-The `AssistantChat` class provides a framework for managing interactions with OpenAI's chat API. It supports dynamic method registration, structured prompts, and execution of system-level actions based on assistant responses. This class is designed to facilitate seamless communication with OpenAI's models while allowing for extensibility through custom callable methods.
+The `AssistantChat` class provides a framework for managing interactions with AI chat APIs. It supports dynamic method registration, structured prompts, and execution of system-level actions based on assistant responses. This class is designed to facilitate seamless communication with AI models while allowing for extensibility through custom callable methods.
 
 ---
 
@@ -8,8 +8,8 @@ The `AssistantChat` class provides a framework for managing interactions with Op
 
 - **Dynamic Method Registration**: Use the `@AssistantChat.Callable` decorator to register methods that the assistant can invoke dynamically.
 - **Structured Prompts**: Automatically generates prompts that guide the assistant's behavior and provide a list of callable methods.
+- **AI Provider Abstraction**: Integrates with different AI providers through the `AIProvider` interface, allowing flexibility and extensibility.
 - **Assistant Response Parsing**: Parses responses from the assistant to determine whether to respond to the user or execute a system-level action.
-- **Integration with OpenAI API**: Handles communication with OpenAI's chat API, including sending messages and processing responses.
 - **Extensibility**: Allows developers to define custom methods that the assistant can call during interactions.
 
 ---
@@ -19,19 +19,21 @@ The `AssistantChat` class provides a framework for managing interactions with Op
 ### Example
 
 ```typescript
-import OpenAI from 'openai'
-import { AssistantChat } from './AssistantChat'
+import OpenAI from 'openai';
+import { OpenAIAssistantChat } from './OpenAIAssistantChat';
 
-// Create an instance of Chat
+// Create an instance of OpenAI client
 const openAI = new OpenAI({ apiKey: 'your-api-key' });
 
 // Register a callable method
-class MyChat extends Chat {
-  @Chat.Callable('Get user ID by name.')
+class MyChat extends OpenAIAssistantChat {
+  @OpenAIAssistantChat.Callable('Get user ID by name.')
   public async getUserId(name: string): Promise<string> {
     return `42`;
   }
 }
+
+// Create an instance of OpenAIAssistantChat
 const chat = new MyChat(openAI, 'You are a helpful assistant.');
 
 // Send a prompt
@@ -41,83 +43,104 @@ console.log(response);
 
 ---
 
-## Public Methods
+## Public Classes
 
-### `constructor`
+### `AssistantChat`
+
+The `AssistantChat` class provides the core framework for managing interactions with AI chat APIs. It is designed to be extended by specific implementations for different AI providers.
+
+#### `constructor`
+
+```typescript
+constructor(
+  aiProvider: AIProvider,
+  systemInstructions: string,
+  messages?: ChatMessage[]
+)
+```
+
+- **Parameters**:
+  - `aiProvider`: An instance of a class implementing the `AIProvider` interface.
+  - `systemInstructions`: A string describing the assistant's role and behavior.
+  - `messages`: (Optional) A history of chat messages.
+
+- **Description**: Initializes a new instance of the `AssistantChat` class.
+
+---
+
+### `AIProvider`
+
+The `AIProvider` is an abstract base class that defines the interface for AI providers. It provides an abstraction layer for integrating different AI providers.
+
+#### `executeChat`
+
+```typescript
+abstract executeChat(messages: ChatMessage[]): Promise<ChatExecutionResult>;
+```
+
+- **Parameters**:
+  - `messages`: An array of chat messages representing the conversation history.
+
+- **Returns**: A promise that resolves to a `ChatExecutionResult` containing the AI's response and token usage.
+
+- **Description**: Executes a chat interaction with the AI model. This method must be implemented by specific AI provider implementations.
+
+---
+
+### `OpenAIAssistantChat`
+
+The `OpenAIAssistantChat` class is a specialized implementation of `AssistantChat` for OpenAI. It simplifies the integration by automatically configuring the `OpenAIProvider` with the provided options.
+
+#### `constructor`
 
 ```typescript
 constructor(
   openAI: OpenAI,
   systemInstructions: string,
   messages?: ChatMessage[],
-  options?: { model: string temperature: number }
+  options?: OpenAIProviderOptions
 )
 ```
 
 - **Parameters**:
   - `openAI`: An instance of the OpenAI client.
-  - `systemInstructions`: A string describing the assistant's role and behavior.
+  - `systemInstructions`: Instructions describing the assistant's role and behavior.
   - `messages`: (Optional) A history of chat messages.
-  - `options`: (Optional) Configuration options for the OpenAI model and temperature.
-    - `model`: The OpenAI model to use (default: `'gpt-3.5-turbo'`).
-    - `temperature`: The temperature setting for the model (default: `0.2`).
+  - `options`: (Optional) Configuration options for the OpenAI provider.
 
-- **Description**: Initializes a new instance of the `AssistantChat` class.
+- **Description**: Initializes a new instance of the `OpenAIAssistantChat` class.
 
 ---
 
-### `prompt`
+### `OpenAIProvider`
+
+The `OpenAIProvider` class is an implementation of the `AIProvider` interface for OpenAI. It handles communication with OpenAI's chat API.
+
+#### `constructor`
 
 ```typescript
-public async prompt(prompt: string, limit: number = 10): Promise<string>
+constructor(
+  openAI: OpenAI,
+  options?: { model: string; temperature: number }
+)
 ```
 
 - **Parameters**:
-  - `prompt`: The user prompt to send to the assistant.
-  - `limit`: (Optional) The maximum number of iterations to attempt (default: `10`).
+  - `openAI`: An instance of the OpenAI client.
+  - `options`: (Optional) Configuration options for the OpenAI provider, such as the model and temperature.
 
-- **Returns**: A `Promise` that resolves to the assistant's response as a string.
-
-- **Description**: Sends a prompt to the assistant and processes the response. The method iterates through assistant responses, determining whether to respond to the user or execute a system-level action. Throws an error if the maximum number of iterations is exceeded.
-
----
-
-### `@AssistantChat.Callable`
+#### `executeChat`
 
 ```typescript
-public static Callable(description: string)
+public async executeChat(messages: ChatMessage[]): Promise<ChatExecutionResult>;
 ```
 
 - **Parameters**:
-  - `description`: A string describing the method being registered.
+  - `messages`: The list of messages to send.
 
-- **Description**: A decorator used to register a method in the `callables` object. Registered methods can be invoked dynamically by the assistant.
+- **Returns**: A promise that resolves to a `ChatExecutionResult` containing the assistant's response, role, and token usage.
 
-- **Example**:
-  ```typescript
-  @AssistantChat.Callable('Greets a user by name.')
-  public async greet(name: string): Promise<string> {
-    return `Hello, ${name}!`
-  }
-  ```
-
----
-
-## Protected Members
-
-### `BASE_PROMPT`
-
-```typescript
-protected BASE_PROMPT(callables: { [name: string]: ChatCallable }, roleInstructions: string): string
-```
-
-- **Parameters**:
-  - `callables`: A dictionary of callable methods with their signatures and descriptions.
-  - `roleInstructions`: A string describing the assistant's role.
-
-- **Returns**: A formatted string containing the base prompt.
-
-- **Description**: Generates the base prompt for OpenAI, including the assistant's role and a list of callable methods. The prompt guides the assistant's behavior and provides instructions for responding to the user or invoking system methods.
+- **Description**: Sends a chat message to OpenAI and retrieves the response.
 
 ---
 
@@ -127,8 +150,8 @@ protected BASE_PROMPT(callables: { [name: string]: ChatCallable }, roleInstructi
 
 ```typescript
 export interface ChatMessage {
-  role: string
-  content: string
+  role: string;
+  content: string;
 }
 ```
 
@@ -136,31 +159,26 @@ export interface ChatMessage {
 
 ---
 
-### `ChatCallable`
+### `ChatExecutionResult`
 
 ```typescript
-export type ChatCallable = {
-  reference: (...params: any[]) => Promise<any>
-  signature: string
-  description: string
+export interface ChatExecutionResult extends ChatMessage {
+  usage: number;
 }
 ```
 
-- **Description**: Represents a callable method that the assistant can invoke. Includes:
-  - `reference`: A reference to the method implementation.
-  - `signature`: The method's signature in TypeScript format.
-  - `description`: A description of the method's purpose.
+- **Description**: Represents the result of a chat execution, including the assistant's response and token usage.
 
 ---
 
 ## How It Works
 
-1. **Initialization**: Create an instance of `AssistantChat` with an OpenAI client and system instructions.
+1. **Initialization**: Create an instance of `AssistantChat` or a specialized implementation like `OpenAIAssistantChat` with an AI provider and system instructions.
 2. **Register Methods**: Use the `@AssistantChat.Callable` decorator to register methods that the assistant can invoke.
 3. **Send Prompts**: Use the `prompt` method to send user input to the assistant and process its response.
-4. **Assistant Behavior**:
-   - If the assistant responds with `TARGET user`, the response is returned to the user.
-   - If the assistant responds with `TARGET system`, the specified method is invoked dynamically.
+4. **AI Provider Integration**:
+   - The `AIProvider` interface allows integration with different AI providers.
+   - The `OpenAIProvider` is a specific implementation for OpenAI.
 
 ---
 

@@ -1,14 +1,14 @@
 import { expect } from 'chai'
 import { OpenAIMockup } from './utils/OpenAIMockup'
-import { AssistantChat } from '../dist'
+import { AssistantChat, OpenAIAssistantChat } from '../dist'
 
 describe('AssistantChat', () => {
   let openAI: OpenAIMockup
-  let assistantChat: AssistantChat
+  let assistantChat: OpenAIAssistantChat
 
   beforeEach(() => {
     openAI = new OpenAIMockup([])
-    assistantChat = new AssistantChat(openAI as any, 'You are a helpful assistant.')
+    assistantChat = new OpenAIAssistantChat(openAI as any, 'You are a helpful assistant.')
   })
 
   describe('constructor', () => {
@@ -20,7 +20,7 @@ describe('AssistantChat', () => {
   describe('prompt', () => {
     it('should send a prompt and return a user-targeted response', async () => {
       openAI = new OpenAIMockup(['TARGET user\nHello, user!'])
-      assistantChat = new AssistantChat(openAI as any, 'You are a helpful assistant.')
+      assistantChat = new OpenAIAssistantChat(openAI as any, 'You are a helpful assistant.')
 
       const response = await assistantChat.prompt('Hello?', 5)
 
@@ -32,7 +32,7 @@ describe('AssistantChat', () => {
         'TARGET system\nsomeMethod()',
         'TARGET user\nThis is the final response.',
       ])
-      assistantChat = new AssistantChat(openAI as any, 'You are a helpful assistant.')
+      assistantChat = new OpenAIAssistantChat(openAI as any, 'You are a helpful assistant.')
 
       const response = await assistantChat.prompt('Hello?', 5)
 
@@ -41,7 +41,7 @@ describe('AssistantChat', () => {
 
     it('should throw an error if the maximum number of iterations is exceeded', async () => {
       openAI = new OpenAIMockup(new Array(100).fill(0).map(i => 'TARGET system\nsomeMethod()'))
-      assistantChat = new AssistantChat(openAI as any, 'You are a helpful assistant.')
+      assistantChat = new OpenAIAssistantChat(openAI as any, 'You are a helpful assistant.')
 
       try {
         await assistantChat.prompt('Hello?', 2)
@@ -54,7 +54,7 @@ describe('AssistantChat', () => {
 
   describe('Callable decorator', () => {
     it('should register a method as callable', () => {
-      class TestChat extends AssistantChat {
+      class TestChat extends OpenAIAssistantChat {
         @AssistantChat.Callable('Greets a user by name.')
         public async greet(name: string): Promise<string> {
           return `Hello, ${name}!`
@@ -73,7 +73,7 @@ describe('AssistantChat', () => {
     })
 
     it('should call a registered method successfully', async () => {
-      class TestChat extends AssistantChat {
+      class TestChat extends OpenAIAssistantChat {
         @AssistantChat.Callable('Greets a user by name.')
         public async greet(name: string): Promise<string> {
           return `Hello, ${name}!`
@@ -90,7 +90,7 @@ describe('AssistantChat', () => {
 
     it('should call a registered method successfully via prompt', async () => {
       let methodCalled = false
-      class TestChat extends AssistantChat {
+      class TestChat extends OpenAIAssistantChat {
         @AssistantChat.Callable('Greets a user by name.')
         public async greet(name: string): Promise<string> {
           methodCalled = true
