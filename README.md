@@ -182,11 +182,74 @@ export interface ChatExecutionResult extends ChatMessage {
 
 ---
 
+## Custom Base Prompt
+
+You can customize the base prompt used by the assistant by calling the `setBasePrompt` method. This allows you to define how the assistant interprets its role and interacts with the user or system.
+
+### Example
+
+```typescript
+chat.setBasePrompt((callables, roleInstructions) => `
+You are an assistant. Your role is described below. You can use the following methods to complete your tasks:
+
+- To call a system method:
+  Start your response with the line \`TARGET system\`, followed by the method call on the next line in the format:
+  \`methodName(param1, param2, ...)\`. Result from this function will be returned to you in the next message with first line \`RESULT\`,
+  in case of error, there will be \`ERROR\` on first line and then some description about that.
+
+- To respond to the user:
+  Start your response with the line \`TARGET user\`, followed by your message on the next lines.
+
+This is the list of methods you can call:
+\`\`\`markdown
+${Object.keys(callables)
+  .map(key => `- ${callables[key].signature} - ${callables[key].description}`)
+  .join('\n')}
+\`\`\`
+
+Example:
+\`\`\`
+TARGET system
+obtainUserIdByName("David")
+\`\`\`
+
+Your role is described here:
+${roleInstructions}
+`);
+```
+
+---
+
+## Limitations
+
+1. **Dependency on `reflect-metadata`**:
+   - The library relies on `reflect-metadata` to extract method metadata. Ensure that `reflect-metadata` is properly imported and configured in your project.
+
+2. **Minified Code**:
+   - If your code is minified (e.g., in production), method names may be altered, which can break the functionality of the `@Callable` decorator. To avoid this, you can explicitly specify the `signature` parameter in the decorator:
+     ```typescript
+     @AssistantChat.Callable('Greets a user by name.', 'greet(name: string)')
+     public async greet(name: string): Promise<string> {
+       return `Hello, ${name}!`;
+     }
+     ```
+
+3. **Custom Base Prompt**:
+   - While the default base prompt is sufficient for most use cases, you may need to customize it for specific scenarios using the `setBasePrompt` method.
+
+---
+
 ## Notes
 
 - The assistant's behavior is guided by the `BASE_PROMPT`, which includes instructions and a list of callable methods.
 - The `prompt` method handles multiple iterations to ensure a valid response is obtained.
 - Custom methods can be added to extend the assistant's functionality.
+
+---
+
+## Development Notice
+
+Keep in mind, this is the first version, and it is still under development. You can use our GitHub repository to leave any comments or suggestions. Your feedback is valuable to us!
 
 ---
 

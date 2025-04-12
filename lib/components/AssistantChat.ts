@@ -116,6 +116,14 @@ export class AssistantChat {
   constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, protected messages: ChatMessage[] = []) {}
 
   /**
+   * Setup base prompt getter
+   * @param basePrompt
+   */
+  public setBasePrompt(basePrompt: (callables: { [name: string]: ChatCallable }, roleInstructions: string) => string) {
+    this.BASE_PROMPT = basePrompt
+  }
+
+  /**
    * @brief Sends a prompt to the assistant and processes the response.
    * @param prompt The user prompt to send.
    * @param limit The maximum number of iterations to attempt.
