@@ -144,6 +144,57 @@ public async executeChat(messages: ChatMessage[]): Promise<ChatExecutionResult>;
 
 ---
 
+## Public Methods
+
+### `getMessages`
+
+The `getMessages` method retrieves the entire chat history between the user and the assistant. It excludes system-level communication and the base instructional prompt, focusing solely on the user-assistant interaction.
+
+#### Example
+
+```typescript
+const messages = chat.getMessages();
+console.log(messages);
+/*
+Output:
+[
+  { role: 'user', content: 'Hello?' },
+  { role: 'assistant', content: 'Hello, user!' },
+  { role: 'user', content: 'What is my user ID?' },
+  { role: 'assistant', content: 'Your user ID is 42.' }
+]
+*/
+```
+
+- **Returns**: An array of chat messages exchanged between the user and the assistant.
+- **Description**: This method is useful for debugging or analyzing the conversation history without including system-level details or the base prompt.
+
+---
+
+### `prompt`
+
+The `prompt` method sends a user input to the assistant and processes its response. It handles multiple iterations to ensure a valid response is obtained, based on the assistant's behavior and the registered callable methods.
+
+#### Example
+
+```typescript
+const response = await chat.prompt('What is my user ID?', 5);
+console.log(response);
+// Output: "Your user ID is 42."
+```
+
+- **Parameters**:
+  - `input`: A string representing the user's input.
+  - `limit`: (Optional) The maximum number of iterations to attempt before throwing an error. Default is `10`.
+
+- **Returns**: A promise that resolves to a string containing the assistant's response.
+
+- **Throws**: An error if the maximum number of iterations is exceeded or if the assistant fails to provide a valid response.
+
+- **Description**: This method is the primary way to interact with the assistant. It processes the user's input, determines whether to respond directly or execute a system-level action, and returns the assistant's response.
+
+---
+
 ## Types
 
 ### `ChatMessage`

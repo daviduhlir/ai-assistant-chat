@@ -192,6 +192,22 @@ export class AssistantChat {
   }
 
   /**
+   * Gets whole messages history
+   * @returns An array of chat messages exchanged between the user and the assistant.
+   * @example
+   * const messages = assistantChat.getMessages();
+   * console.log(messages);
+   * // Output: [
+   * //   { role: 'user', content: 'Hello?' },
+   * //   { role: 'assistant', content: 'Hello, user!' },
+   * //   { role: 'user', content: 'This is the final response.' }
+   * // ]
+   */
+  public getMessages() {
+    return this.messages
+  }
+
+  /**
    * @brief Checks if the assistant is currently busy processing a request.
    * @returns A boolean indicating whether the assistant is busy.
    */
