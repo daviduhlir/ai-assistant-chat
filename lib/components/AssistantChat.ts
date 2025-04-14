@@ -31,7 +31,7 @@
  */
 import 'reflect-metadata'
 import { AIProvider } from './AIProvider'
-import { ChatMessage } from '../interfaces'
+import { ChatMessage, ChatMessageInputContent } from '../interfaces'
 import { FunctionUtils } from '../utils/functions'
 import { ResponsesUtils } from '../utils/responses'
 
@@ -130,12 +130,13 @@ export class AssistantChat {
    * @returns The assistant's response as a string.
    * @throws An error if the maximum number of iterations is exceeded.
    */
-  public async prompt(prompt: string, limit: number = 10): Promise<string> {
+  public async prompt(prompt: ChatMessageInputContent, limit: number = 10): Promise<string> {
     if (this.isBussy) {
       throw new Error(`Assistant is busy`)
     }
     const messages = [...this.messages]
     this.isBussy = true
+
     this.messages.push({ role: 'user', content: prompt })
 
     const tempMessages: ChatMessage[] = []
@@ -144,11 +145,15 @@ export class AssistantChat {
       itterations++
       const response = await this.aiProvider.executeChat([
         { role: 'system', content: this.BASE_PROMPT(this.callables, this.systemInstructions) },
-        ...messages,
+        ...this.messages,
         ...tempMessages,
       ])
-      tempMessages.push({ role: response.role, content: response.content })
 
+      tempMessages.push({ role: response.role, content: response.content })
+      if (typeof response.content !== 'string') {
+        tempMessages.push({ role: 'user', content: `ERROR\nyour response have to be a string` })
+        continue
+      }
       const extracted = ResponsesUtils.extractTargetAndBody(response.content)
 
       if (extracted.target === 'user') {

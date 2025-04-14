@@ -38,10 +38,41 @@ export class OpenAIProvider extends AIProvider {
    * @throws An error if the OpenAI API call fails.
    */
   public async executeChat(messages: ChatMessage[]): Promise<ChatExecutionResult> {
+    const messagesToSend = messages.reduce((acc, message) => {
+      if (typeof message.content === 'string') {
+        return [
+          ...acc,
+          {
+            role: message.role,
+            content: message.content,
+          },
+        ]
+      } else if (Buffer.isBuffer(message.content?.buffer)) {
+        return [
+          ...acc,
+          {
+            role: message.role,
+            content: {
+              type: 'image_url',
+              image_url: { url: `data:image/jpeg;base64,${message.content.buffer.toString('base64')}` },
+            },
+          },
+          message.content?.message
+            ? {
+                role: message.role,
+                content: message.content.message,
+              }
+            : null,
+        ].filter(Boolean)
+      } else {
+        throw new Error(`Invalid message content type: ${typeof message.content}`)
+      }
+    }, [])
+
     const response = await this.openAI.chat.completions.create({
       model: this.options.model,
       temperature: this.options.temperature,
-      messages: messages as ChatCompletionMessageParam[],
+      messages: messagesToSend,
     })
 
     return {
