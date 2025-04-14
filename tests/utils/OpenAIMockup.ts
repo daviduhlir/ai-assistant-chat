@@ -4,6 +4,8 @@ export class OpenAIMockup {
   private responses: string[];
   private currentIndex: number;
 
+  public lastMessages: ChatCompletionMessageParam[] = [];
+
   constructor(responses: string[]) {
     this.responses = responses;
     this.currentIndex = 0;
@@ -22,6 +24,8 @@ export class OpenAIMockup {
         if (this.currentIndex >= this.responses.length) {
           throw new Error('No more mock responses available');
         }
+
+        this.lastMessages = messages;
 
         const responseContent = this.responses[this.currentIndex];
         this.currentIndex++;

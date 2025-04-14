@@ -47,4 +47,23 @@ describe('Basics', () => {
       expect(error.message).to.equal('Too many attempts to get a valid response')
     }
   })
+
+  it('should send all messages from the last iteration to the provider', async () => {
+    openAI = new OpenAIMockup([
+      'TARGET user\nThis is the final response.',
+    ]);
+    assistantChat = new OpenAIAssistantChat(openAI as any, 'You are a helpful assistant.');
+    assistantChat.setBasePrompt((_, roleInstructions) => `${roleInstructions}`)
+
+    const response = await assistantChat.prompt('Hello?', 5);
+
+    // Ověř, že všechny zprávy byly odeslány do mocku
+    expect(openAI.lastMessages).to.deep.equal([
+      { role: 'system', content: 'You are a helpful assistant.' },
+      { role: 'user', content: 'Hello?' }
+    ]);
+
+    // Ověř, že odpověď je správná
+    expect(response).to.equal('This is the final response.');
+  });
 })
