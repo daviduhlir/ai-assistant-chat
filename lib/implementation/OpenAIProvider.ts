@@ -1,6 +1,5 @@
 import OpenAI from 'openai'
 import { ChatMessage } from '../interfaces'
-import { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { AIProvider, ChatExecutionResult } from '../components/AIProvider'
 
 export interface OpenAIProviderOptions {
