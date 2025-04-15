@@ -55,7 +55,7 @@ export class OpenAIThreadProvider extends AIProvider {
    * @param messages Initial messages for the thread.
    * @returns The ID of the newly created thread.
    */
-  public async createThread(messages: ChatMessage[] = []): Promise<string> {
+  public async createThread(instructions: string, messages: ChatMessage[] = []): Promise<string> {
     try {
       this.assistant = await this.openAI.beta.assistants.create({
         name: this.options.assistantName,
@@ -63,7 +63,14 @@ export class OpenAIThreadProvider extends AIProvider {
         tools: this.options.tools,
         model: this.options.model,
       })
+
       const response = await this.openAI.beta.threads.create()
+
+      await this.openAI.beta.threads.messages.create(response.id, {
+        role: 'user',
+        content: instructions,
+      })
+
       for (const message of messages) {
         await this.openAI.beta.threads.messages.create(response.id, {
           role: message.role as any,

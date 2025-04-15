@@ -29,7 +29,7 @@ export abstract class AIProvider {
   /**
    * Creates thread and returns thread ID
    */
-  abstract createThread(messages: ChatMessage[]): Promise<string>
+  abstract createThread(instructions: string, messages: ChatMessage[]): Promise<string>
 
   /**
    * Add message to thread

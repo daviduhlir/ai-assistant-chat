@@ -176,7 +176,7 @@ export class OpenAIMockup {
             if (run) {
               run.status = 'completed';
             }
-          }, 1000); // Dokončení po 1 sekundě
+          }, 200); // Dokončení po 1 sekundě
 
           return { id: runId };
         },

@@ -146,12 +146,7 @@ export class Assistant {
   public async initialize(messages: ChatMessage[] = []) {
     if (!this.creatingThread) {
       this.creatingThread = true
-      const threadId = await this.aiProvider.createThread(messages)
-      // TODO use system role for chat completions
-      await this.aiProvider.addMessageToThread(threadId, {
-        role: this.assistantOptions.type === 'chat' ? 'system' : 'user',
-        content: this.BASE_PROMPT(this.callables, this.systemInstructions),
-      })
+      const threadId = await this.aiProvider.createThread(this.BASE_PROMPT(this.callables, this.systemInstructions), messages)
       this.threadId = threadId
       return this.threadId
     } else {

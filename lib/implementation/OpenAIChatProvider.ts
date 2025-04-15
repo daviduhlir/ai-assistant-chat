@@ -6,11 +6,13 @@ import { randomHash } from '../utils'
 export interface OpenAIChatProviderOptions {
   model: string
   temperature: number
+  summarizeAfter?: number
 }
 
 export const OpenAIChatProviderOptionsDefault: OpenAIChatProviderOptions = {
   model: 'gpt-3.5-turbo',
   temperature: 0.2,
+  summarizeAfter: 10,
 }
 
 /**
@@ -31,7 +33,7 @@ export class OpenAIChatProvider extends AIProvider {
     super()
   }
 
-  protected threads: Map<string, ChatMessage[]> = new Map()
+  protected threads: Map<string, { instructions: string; messages: ChatMessage[] }> = new Map()
 
   /**
    * Gets whole messages history
@@ -46,7 +48,7 @@ export class OpenAIChatProvider extends AIProvider {
    * // ]
    */
   public getMessages(threadId: string): ChatMessage[] {
-    return this.threads.get(threadId) || []
+    return this.threads.get(threadId)?.messages || []
   }
 
   /**
@@ -54,9 +56,9 @@ export class OpenAIChatProvider extends AIProvider {
    * @param messages
    * @returns
    */
-  public async createThread(messages: ChatMessage[] = []): Promise<string> {
+  public async createThread(instructions: string, messages: ChatMessage[] = []): Promise<string> {
     const threadId = randomHash()
-    this.threads.set(threadId, messages)
+    this.threads.set(threadId, { messages, instructions })
     return threadId
   }
 
@@ -70,7 +72,7 @@ export class OpenAIChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    thread.push(message)
+    thread.messages.push(message)
     this.threads.set(threadId, thread)
   }
 
@@ -84,7 +86,38 @@ export class OpenAIChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    const messages = thread
+
+    if (this.options.summarizeAfter && thread.messages.length > this.options.summarizeAfter) {
+      await this.summarizeMessages(threadId)
+    }
+
+    return this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages])
+  }
+
+  /**
+   * Remove thread from memory
+   * @param threadId
+   */
+  public async removeThread(threadId: string): Promise<void> {
+    const thread = this.threads.get(threadId)
+    if (!thread) {
+      throw new Error(`Thread with ID ${threadId} not found.`)
+    }
+    this.threads.delete(threadId)
+  }
+
+  /**
+   *
+   * Internal methods
+   *
+   */
+
+  /**
+   * Execute chat internaly
+   * @param messages
+   * @returns
+   */
+  protected async runCompletion(messages: ChatMessage[]): Promise<ChatExecutionResult> {
     const messagesToSend = messages.reduce<ChatInputMessage[]>((acc, message) => {
       if (typeof message.content === 'string') {
         return [
@@ -117,12 +150,12 @@ export class OpenAIChatProvider extends AIProvider {
       }
     }, [])
 
+    console.log('Running completion with messages count', messagesToSend.length)
     const response = await this.openAI.chat.completions.create({
       model: this.options.model,
       temperature: this.options.temperature,
       messages: messagesToSend as any,
     })
-
     return {
       role: response.choices[0].message.role,
       content: response.choices[0].message.content || '',
@@ -131,14 +164,21 @@ export class OpenAIChatProvider extends AIProvider {
   }
 
   /**
-   * Remove thread from memory
+   * Summarize messages in a thread
    * @param threadId
    */
-  public async removeThread(threadId: string): Promise<void> {
+  protected async summarizeMessages(threadId: string): Promise<void> {
     const thread = this.threads.get(threadId)
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    this.threads.delete(threadId)
+    const summaryResult = await this.runCompletion([
+      {
+        role: 'system',
+        content: `Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.`,
+      },
+      ...thread.messages,
+    ])
+    thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.content}` }]
   }
 }
