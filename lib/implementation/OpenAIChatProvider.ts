@@ -72,6 +72,9 @@ export class OpenAIChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
+    if (this.options.summarizeAfter && thread.messages.length > this.options.summarizeAfter) {
+      await this.summarizeMessages(threadId)
+    }
     thread.messages.push(message)
     this.threads.set(threadId, thread)
   }
@@ -86,11 +89,6 @@ export class OpenAIChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-
-    if (this.options.summarizeAfter && thread.messages.length > this.options.summarizeAfter) {
-      await this.summarizeMessages(threadId)
-    }
-
     return this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages])
   }
 
@@ -150,7 +148,6 @@ export class OpenAIChatProvider extends AIProvider {
       }
     }, [])
 
-    console.log('Running completion with messages count', messagesToSend.length)
     const response = await this.openAI.chat.completions.create({
       model: this.options.model,
       temperature: this.options.temperature,
@@ -180,5 +177,6 @@ export class OpenAIChatProvider extends AIProvider {
       ...thread.messages,
     ])
     thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.content}` }]
+    this.threads.set(threadId, thread)
   }
 }

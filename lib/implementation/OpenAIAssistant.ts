@@ -10,6 +10,7 @@ export interface OpenAIAssistantOptions {
   type: 'thread' | 'chat'
   assistantName?: string // only for thread
   tools?: any[]
+  summarizeAfter?: number // only for chat
 }
 
 export const OpenAIAssistantOptionsDefault: OpenAIAssistantOptions = {
@@ -18,6 +19,7 @@ export const OpenAIAssistantOptionsDefault: OpenAIAssistantOptions = {
   type: 'thread',
   assistantName: 'Assistant',
   tools: [],
+  summarizeAfter: 10,
 }
 
 /**
