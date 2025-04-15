@@ -53,7 +53,7 @@ describe('Responses parser', () => {
     const testChat = new TestChat(openAI as any, 'You are a helpful assistant.')
 
     const result = await testChat.prompt('What is this?', 5)
-    expect(result).to.equal('second try')
+    expect(result).to.equal('This is a response without a target.')
   })
 
   it('should handle a response with a valid JSON array', async () => {
@@ -80,6 +80,6 @@ describe('Responses parser', () => {
     openAI = new OpenAIMockup(['TARGET unknown\nThis is an invalid target.', 'TARGET user\nsecond try'])
     const testChat = new TestChat(openAI as any, 'You are a helpful assistant.')
     const result = await testChat.prompt('What is this?', 5)
-    expect(result).to.equal('second try')
+    expect(result).to.equal('This is an invalid target.')
   })
 })
