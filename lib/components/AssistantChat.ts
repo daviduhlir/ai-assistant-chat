@@ -55,28 +55,35 @@ export class AssistantChat {
    * @param roleInstructions Instructions describing the assistant's role.
    * @returns A formatted string containing the base prompt.
    */
-  protected BASE_PROMPT = (callables: { [name: string]: ChatCallable }, roleInstructions: string) => `
+  protected BASE_PROMPT = (callables, roleInstructions: string) => `
   You are an assistant. Your role is described below. You can use the following methods to complete your tasks. Always respond as described:
 
   - To call a system method:
-    Start your response with the line \`TARGET system\`, followed by the method call on the next line in the format:
-    \`methodName(param1, param2, ...)\`. Result from this function will be returned to you in the next message with first line \`RESULT\`,
-    in case of error, there will be \`ERROR\` on first line and then some description about that.
+    You MUST start your response with the line \`TARGET system\`, followed by the method call on the next line in the exact format:
+    \`methodName(param1, param2, ...)\`.
+    **Do not include any additional text, comments, explanations, or context. Only the method call is allowed.**
+    If you include anything else, the system will reject your response as invalid.
 
   - To respond to the user:
     Start your response with the line \`TARGET user\`, followed by your message on the next lines.
+
+  IMPORTANT:
+  - When calling a system method, your response MUST contain only the exact method call in the format specified above.
+  - Do NOT explain what you are doing, do NOT provide context, and do NOT include any additional text before or after the method call.
+  - Any deviation from this format will result in the system rejecting your response.
+  - Always respond with only one message at a time.
+
+  If you want to call a method, always return only the method call without any text around it. For example:
+  \`\`\`
+  TARGET system
+  obtainUserIdByName("David")
+  \`\`\`
 
   This is the list of methods you can call:
   \`\`\`markdown
   ${Object.keys(callables)
     .map(key => `- ${callables[key].signature} - ${callables[key].description}`)
     .join('\n')}
-  \`\`\`
-
-  Example:
-  \`\`\`
-  TARGET system
-  obtainUserIdByName("David")
   \`\`\`
 
   Your role is described here:
@@ -156,12 +163,7 @@ export class AssistantChat {
       }
       const extracted = ResponsesUtils.extractTargetAndBody(response.content)
 
-      if (extracted.target === 'user') {
-        messages.push({ role: response.role, content: extracted.body })
-        this.messages = messages
-        this.isBussy = false
-        return extracted.body
-      } else if (extracted.target === 'system') {
+      if (extracted.target === 'system') {
         try {
           const parsed = ResponsesUtils.parseResponse(extracted.body)
           const callParsed = FunctionUtils.parseMethodCall(parsed)
@@ -175,7 +177,10 @@ export class AssistantChat {
           tempMessages.push({ role: 'user', content: `There was some error when parsing target from your response. ${parseError.message}` })
         }
       } else {
-        tempMessages.push({ role: 'user', content: `ERROR\nNo target was specified` })
+        messages.push({ role: response.role, content: extracted.body })
+        this.messages = messages
+        this.isBussy = false
+        return extracted.body
       }
     }
     this.isBussy = false
