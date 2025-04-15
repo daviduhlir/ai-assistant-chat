@@ -63,9 +63,9 @@ export class OpenAIAssistant extends Assistant {
   ) {
     super(
       options.type === 'thread'
-        ? new OpenAIThreadProvider(openAI, {...OpenAIThreadProviderOptionsDefault, ...options} as OpenAIThreadProviderOptions)
+        ? new OpenAIThreadProvider(openAI, { ...OpenAIThreadProviderOptionsDefault, ...options } as OpenAIThreadProviderOptions)
         : options.type === 'chat'
-        ? new OpenAIChatProvider(openAI, {...OpenAIChatProviderOptionsDefault, ...options} as OpenAIChatProviderOptions)
+        ? new OpenAIChatProvider(openAI, { ...OpenAIChatProviderOptionsDefault, ...options } as OpenAIChatProviderOptions)
         : null,
       systemInstructions,
       messages,

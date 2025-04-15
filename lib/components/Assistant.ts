@@ -126,7 +126,12 @@ export class Assistant {
    * @param systemInstructions Instructions describing the assistant's role.
    * @param messages A history of chat messages.
    */
-  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, messages: ChatMessage[] = [], protected assistantOptions: AssistantOptions = AssistantOptionsDefault) {
+  constructor(
+    readonly aiProvider: AIProvider,
+    readonly systemInstructions: string,
+    messages: ChatMessage[] = [],
+    protected assistantOptions: AssistantOptions = AssistantOptionsDefault,
+  ) {
     this.initialize(messages)
   }
 
@@ -140,7 +145,10 @@ export class Assistant {
       this.creatingThread = true
       const threadId = await this.aiProvider.createThread(messages)
       // TODO use system role for chat completions
-      await this.aiProvider.addMessageToThread(threadId, { role: this.assistantOptions.type === 'chat' ? 'system' : 'user', content: this.BASE_PROMPT(this.callables, this.systemInstructions) })
+      await this.aiProvider.addMessageToThread(threadId, {
+        role: this.assistantOptions.type === 'chat' ? 'system' : 'user',
+        content: this.BASE_PROMPT(this.callables, this.systemInstructions),
+      })
       this.threadId = threadId
       return this.threadId
     } else {

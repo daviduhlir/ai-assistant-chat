@@ -71,7 +71,7 @@ export class OpenAIThreadProvider extends AIProvider {
         })
       }
       return response.id
-    } catch(e) {
+    } catch (e) {
       console.error(e)
       throw e
     }
@@ -88,7 +88,7 @@ export class OpenAIThreadProvider extends AIProvider {
         role: message.role as any,
         content: message.content as any,
       })
-    } catch(e) {
+    } catch (e) {
       console.error(e)
       throw e
     }
