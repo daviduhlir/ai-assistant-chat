@@ -21,10 +21,10 @@ export const OpenAIAssistantOptionsDefault: OpenAIAssistantOptions = {
 }
 
 /**
- * @class OpenAIAssistantChat
+ * @class OpenAIAssistant
  * @brief Specialized implementation of AssistantChat for OpenAI.
  *
- * The `OpenAIAssistantChat` class provides a concrete implementation of the `AssistantChat` class
+ * The `OpenAIAssistant` class provides a concrete implementation of the `Assistant` class
  * using OpenAI's API. It simplifies the integration by automatically configuring the `OpenAIProvider`
  * with the provided options.
  *

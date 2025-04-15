@@ -132,6 +132,9 @@ export class Assistant {
     messages: ChatMessage[] = [],
     protected assistantOptions: AssistantOptions = AssistantOptionsDefault,
   ) {
+    if (!['chat', 'thread'].includes(this.assistantOptions.type)) {
+      throw new Error(`Assistant type must be 'chat' or 'thread'`)
+    }
     this.initialize(messages)
   }
 
