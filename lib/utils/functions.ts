@@ -9,33 +9,33 @@ export class FunctionUtils {
    */
   public static parseMethodCall(text: string): { call: string; parameters: any[] } | null {
     // Match the method name and everything inside the parentheses
-    const match = text.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(([\s\S]*)\)$/);
+    const match = text.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\(([\s\S]*)\)$/)
     if (!match) {
-      throw new Error('Invalid method call format');
+      throw new Error('Invalid method call format')
     }
 
-    const call = match[1];
-    let rawParams = match[2];
+    const call = match[1]
+    let rawParams = match[2]
 
     try {
       // Handle multi-line strings wrapped in backticks
       rawParams = rawParams.replace(/`([^`]*)`/g, (_, content) => {
-        return JSON.stringify(content); // Convert backtick-wrapped strings to valid JSON strings
-      });
+        return JSON.stringify(content) // Convert backtick-wrapped strings to valid JSON strings
+      })
 
       // Parse the parameters as JSON
       const parameters = rawParams
         ? JSON.parse(`[${rawParams}]`, (key, value) => {
             // Handle escaped newlines in strings
             if (typeof value === 'string') {
-              return value.replace(/\\n/g, '\n');
+              return value.replace(/\\n/g, '\n')
             }
-            return value;
+            return value
           })
-        : [];
-      return { call, parameters };
+        : []
+      return { call, parameters }
     } catch (error) {
-      throw new Error(`Failed to parse parameters: ${error.message}`);
+      throw new Error(`Failed to parse parameters: ${error.message}`)
     }
   }
 
