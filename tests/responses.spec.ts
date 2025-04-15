@@ -1,19 +1,19 @@
 import { expect } from 'chai'
 import { OpenAIMockup } from './utils/OpenAIMockup'
-import { OpenAIAssistantChat } from '../dist'
+import { OpenAIAssistant } from '../dist'
 
 describe('Responses parser', () => {
   let openAI: OpenAIMockup
-  let assistantChat: OpenAIAssistantChat
+  let assistantChat: OpenAIAssistant
 
   beforeEach(() => {
     openAI = new OpenAIMockup([])
-    assistantChat = new OpenAIAssistantChat(openAI as any, 'You are a helpful assistant.')
+    assistantChat = new OpenAIAssistant(openAI as any, 'You are a helpful assistant.')
   })
 
   it('should handle a valid JSON response from the assistant', async () => {
-    class TestChat extends OpenAIAssistantChat {
-      @OpenAIAssistantChat.Callable('Processes a JSON object.')
+    class TestChat extends OpenAIAssistant {
+      @OpenAIAssistant.Callable('Processes a JSON object.')
       public async processJson(data: { key: string }): Promise<string> {
         return `Processed key: ${data.key}`
       }
@@ -29,8 +29,8 @@ describe('Responses parser', () => {
   })
 
   it('should handle an invalid JSON response gracefully', async () => {
-    class TestChat extends OpenAIAssistantChat {
-      @OpenAIAssistantChat.Callable('Processes a JSON object.')
+    class TestChat extends OpenAIAssistant {
+      @OpenAIAssistant.Callable('Processes a JSON object.')
       public async processJson(data: { key: string }): Promise<string> {
         return `Processed key: ${data.key}`
       }
@@ -46,7 +46,7 @@ describe('Responses parser', () => {
   })
 
   it('should handle a response with no target gracefully', async () => {
-    class TestChat extends OpenAIAssistantChat {}
+    class TestChat extends OpenAIAssistant {}
 
     // Nastav mock odpověď bez cíle (neplatný formát)
     openAI = new OpenAIMockup(['This is a response without a target.', 'TARGET user\nsecond try'])
@@ -57,8 +57,8 @@ describe('Responses parser', () => {
   })
 
   it('should handle a response with a valid JSON array', async () => {
-    class TestChat extends OpenAIAssistantChat {
-      @OpenAIAssistantChat.Callable('Processes a JSON array.')
+    class TestChat extends OpenAIAssistant {
+      @OpenAIAssistant.Callable('Processes a JSON array.')
       public async processArray(data: string[]): Promise<string> {
         return `Processed array with ${data.length} items`
       }
@@ -74,7 +74,7 @@ describe('Responses parser', () => {
   })
 
   it('should handle a response with a malformed target', async () => {
-    class TestChat extends OpenAIAssistantChat {}
+    class TestChat extends OpenAIAssistant {}
 
     // Nastav mock odpověď s neplatným cílem
     openAI = new OpenAIMockup(['TARGET unknown\nThis is an invalid target.', 'TARGET user\nsecond try'])

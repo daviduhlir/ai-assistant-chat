@@ -1,6 +1,6 @@
-import { ChatMessage } from '../interfaces'
+import { ChatMessage, ChatOutputMessage } from '../interfaces'
 
-export interface ChatExecutionResult extends ChatMessage {
+export interface ChatExecutionResult extends ChatOutputMessage {
   usage: number
 }
 
@@ -24,5 +24,25 @@ export abstract class AIProvider {
    * @returns A promise that resolves to a `ChatExecutionResult` containing the AI's response and token usage.
    * @throws An error if the chat execution fails.
    */
-  abstract executeChat(messages: ChatMessage[]): Promise<ChatExecutionResult>
+  //abstract executeChat(messages: ChatMessage[]): Promise<ChatExecutionResult>
+
+  /**
+   * Creates thread and returns thread ID
+   */
+  abstract createThread(messages: ChatMessage[]): Promise<string>
+
+  /**
+   * Add message to thread
+   */
+  abstract addMessageToThread(threadId: string, message: ChatMessage): Promise<void>
+
+  /**
+   * Execute thread and returns result
+   */
+  abstract executeThread(threadId: string): Promise<ChatExecutionResult>
+
+  /**
+   * Remove thread from memory
+   */
+  abstract removeThread(threadId: string): Promise<void>
 }

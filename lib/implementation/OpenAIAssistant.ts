@@ -1,7 +1,24 @@
 import OpenAI from 'openai'
-import { AssistantChat } from '../components/AssistantChat'
-import { OpenAIProvider, OpenAIProviderOptions, OpenAIProviderOptionsDefault } from './OpenAIProvider'
+import { Assistant, AssistantOptions } from '../components/Assistant'
+import { OpenAIChatProvider, OpenAIChatProviderOptions, OpenAIChatProviderOptionsDefault } from './OpenAIChatProvider'
 import { ChatMessage } from '../interfaces'
+import { OpenAIThreadProvider, OpenAIThreadProviderOptions, OpenAIThreadProviderOptionsDefault } from './OpenAIThreadProvider'
+
+export interface OpenAIAssistantOptions {
+  model: string
+  temperature: number
+  type: 'thread' | 'chat'
+  assistantName?: string // only for thread
+  tools?: any[]
+}
+
+export const OpenAIAssistantOptionsDefault: OpenAIAssistantOptions = {
+  model: 'gpt-3.5-turbo',
+  temperature: 0.2,
+  type: 'thread',
+  assistantName: 'Assistant',
+  tools: [],
+}
 
 /**
  * @class OpenAIAssistantChat
@@ -16,7 +33,7 @@ import { ChatMessage } from '../interfaces'
  * - It uses the `OpenAIProvider` to handle communication with OpenAI's chat API.
  * - Developers can use this class to create an assistant with predefined system instructions and message history.
  */
-export class OpenAIAssistantChat extends AssistantChat {
+export class OpenAIAssistant extends Assistant {
   /**
    * @brief Decorator to register a method in the `callables` object.
    * @param description A description of the method being registered.
@@ -27,7 +44,7 @@ export class OpenAIAssistantChat extends AssistantChat {
       memberName: keyof T,
       descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<string>>,
     ) {
-      AssistantChat.Callable(description, signature)(target, memberName, descriptor)
+      Assistant.Callable(description, signature)(target, memberName, descriptor)
     }
   }
 
@@ -42,8 +59,17 @@ export class OpenAIAssistantChat extends AssistantChat {
     openAI: OpenAI,
     systemInstructions: string,
     messages: ChatMessage[] = [],
-    options: OpenAIProviderOptions = OpenAIProviderOptionsDefault,
+    readonly options: Partial<OpenAIAssistantOptions> = OpenAIAssistantOptionsDefault,
   ) {
-    super(new OpenAIProvider(openAI, options), systemInstructions, messages)
+    super(
+      options.type === 'thread'
+        ? new OpenAIThreadProvider(openAI, {...OpenAIThreadProviderOptionsDefault, ...options} as OpenAIThreadProviderOptions)
+        : options.type === 'chat'
+        ? new OpenAIChatProvider(openAI, {...OpenAIChatProviderOptionsDefault, ...options} as OpenAIChatProviderOptions)
+        : null,
+      systemInstructions,
+      messages,
+      options as AssistantOptions,
+    )
   }
 }

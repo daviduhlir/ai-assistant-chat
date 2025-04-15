@@ -44,11 +44,17 @@ export type ChatCallable = {
   description: string
 }
 
+export interface AssistantOptions {
+  type: 'chat' | 'thread'
+}
+
+export const AssistantOptionsDefault: AssistantOptions = { type: 'chat' }
+
 /**
  * Chat class
  * @description This class is used to interact with OpenAI's chat API.
  */
-export class AssistantChat {
+export class Assistant {
   /**
    * @brief Generates the base prompt for OpenAI.
    * @param callables A dictionary of callable methods with their signatures and descriptions.
@@ -120,7 +126,27 @@ export class AssistantChat {
    * @param systemInstructions Instructions describing the assistant's role.
    * @param messages A history of chat messages.
    */
-  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, protected messages: ChatMessage[] = []) {}
+  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, messages: ChatMessage[] = [], protected assistantOptions: AssistantOptions = AssistantOptionsDefault) {
+    this.initialize(messages)
+  }
+
+  /**
+   * Initialize the assistant chat and await for the thread ID.
+   * @param messages
+   * @returns
+   */
+  public async initialize(messages: ChatMessage[] = []) {
+    if (!this.creatingThread) {
+      this.creatingThread = true
+      const threadId = await this.aiProvider.createThread(messages)
+      // TODO use system role for chat completions
+      await this.aiProvider.addMessageToThread(threadId, { role: this.assistantOptions.type === 'chat' ? 'system' : 'user', content: this.BASE_PROMPT(this.callables, this.systemInstructions) })
+      this.threadId = threadId
+      return this.threadId
+    } else {
+      return this.awaitThreadId()
+    }
+  }
 
   /**
    * Setup base prompt getter
@@ -141,27 +167,25 @@ export class AssistantChat {
     if (this.isBussy) {
       throw new Error(`Assistant is busy`)
     }
-    const messages = [...this.messages]
+
+    const threadId = await this.awaitThreadId()
     this.isBussy = true
 
-    this.messages.push({ role: 'user', content: prompt })
+    await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: prompt })
 
-    const tempMessages: ChatMessage[] = []
     let itterations = 0
     while (itterations < limit) {
       itterations++
-      const response = await this.aiProvider.executeChat([
-        { role: 'system', content: this.BASE_PROMPT(this.callables, this.systemInstructions) },
-        ...this.messages,
-        ...tempMessages,
-      ])
+      const response = await this.aiProvider.executeThread(threadId)
 
-      tempMessages.push({ role: response.role, content: response.content })
+      if (this.assistantOptions.type === 'chat') {
+        await this.aiProvider.addMessageToThread(threadId, { role: response.role, content: response.content })
+      }
       if (typeof response.content !== 'string') {
-        tempMessages.push({ role: 'user', content: `ERROR\nyour response have to be a string` })
+        await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: `ERROR\nyour response have to be a string` })
         continue
       }
-      const extracted = ResponsesUtils.extractTargetAndBody(response.content)
+      const extracted = ResponsesUtils.extractTargetAndBody(ResponsesUtils.parseResponse(response.content))
 
       if (extracted.target === 'system') {
         try {
@@ -169,16 +193,21 @@ export class AssistantChat {
           const callParsed = FunctionUtils.parseMethodCall(parsed)
           try {
             const result = await this.action(callParsed)
-            tempMessages.push({ role: 'user', content: `RESULT\n${result}` })
+            await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: `RESULT\n${result}` })
           } catch (actionError) {
-            tempMessages.push({ role: 'user', content: `ERROR\nThere was some error when calling action. ${actionError.message}` })
+            await this.aiProvider.addMessageToThread(threadId, {
+              role: 'user',
+              content: `ERROR\nThere was some error when calling action. ${actionError.message}`,
+            })
           }
         } catch (parseError) {
-          tempMessages.push({ role: 'user', content: `There was some error when parsing target from your response. ${parseError.message}` })
+          await this.aiProvider.addMessageToThread(threadId, {
+            role: 'user',
+            content: `There was some error when parsing target from your response. ${parseError.message}`,
+          })
         }
       } else {
-        messages.push({ role: response.role, content: extracted.body })
-        this.messages = messages
+        await this.aiProvider.addMessageToThread(threadId, { role: response.role, content: extracted.body })
         this.isBussy = false
         return extracted.body
       }
@@ -202,27 +231,27 @@ export class AssistantChat {
   }
 
   /**
-   * Gets whole messages history
-   * @returns An array of chat messages exchanged between the user and the assistant.
-   * @example
-   * const messages = assistantChat.getMessages();
-   * console.log(messages);
-   * // Output: [
-   * //   { role: 'user', content: 'Hello?' },
-   * //   { role: 'assistant', content: 'Hello, user!' },
-   * //   { role: 'user', content: 'This is the final response.' }
-   * // ]
-   */
-  public getMessages() {
-    return this.messages
-  }
-
-  /**
    * @brief Checks if the assistant is currently busy processing a request.
    * @returns A boolean indicating whether the assistant is busy.
    */
   public get bussy() {
     return this.isBussy
+  }
+
+  /**
+   * Get thread ID
+   * @returns
+   */
+  public getThreadId() {
+    return this.threadId
+  }
+
+  /**
+   * Clear the thread
+   */
+  public clear() {
+    this.isBussy = false
+    this.aiProvider.removeThread(this.threadId)
   }
 
   /***************************************
@@ -231,6 +260,8 @@ export class AssistantChat {
    *
    ***************************************/
   protected isBussy: boolean = false
+  protected threadId: string = null
+  protected creatingThread: boolean = false
 
   /**
    * Get all handlers
@@ -239,6 +270,24 @@ export class AssistantChat {
     [name: string]: ChatCallable
   } {
     return { ...(Reflect.getMetadata(isCallableKey, this) || {}) }
+  }
+
+  /**
+   * Await thread Id to be set
+   * @returns
+   */
+  private async awaitThreadId(): Promise<string> {
+    if (this.threadId) {
+      return this.threadId
+    }
+    return new Promise(resolve => {
+      const interval = setInterval(() => {
+        if (this.threadId) {
+          clearInterval(interval)
+          resolve(this.threadId)
+        }
+      }, 10)
+    })
   }
 
   /**

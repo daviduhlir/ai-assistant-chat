@@ -1,19 +1,19 @@
 import { expect } from 'chai'
 import { OpenAIMockup } from './utils/OpenAIMockup'
-import { OpenAIAssistantChat } from '../dist'
+import { OpenAIAssistant } from '../dist'
 
 describe('Callable decorator', () => {
   let openAI: OpenAIMockup
-  let assistantChat: OpenAIAssistantChat
+  let assistantChat: OpenAIAssistant
 
   beforeEach(() => {
     openAI = new OpenAIMockup([])
-    assistantChat = new OpenAIAssistantChat(openAI as any, 'You are a helpful assistant.')
+    assistantChat = new OpenAIAssistant(openAI as any, 'You are a helpful assistant.')
   })
 
   it('should register a method as callable', () => {
-    class TestChat extends OpenAIAssistantChat {
-      @OpenAIAssistantChat.Callable('Greets a user by name.')
+    class TestChat extends OpenAIAssistant {
+      @OpenAIAssistant.Callable('Greets a user by name.')
       public async greet(name: string): Promise<string> {
         return `Hello, ${name}!`
       }
@@ -31,8 +31,8 @@ describe('Callable decorator', () => {
   })
 
   it('should call a registered method successfully', async () => {
-    class TestChat extends OpenAIAssistantChat {
-      @OpenAIAssistantChat.Callable('Greets a user by name.')
+    class TestChat extends OpenAIAssistant {
+      @OpenAIAssistant.Callable('Greets a user by name.')
       public async greet(name: string): Promise<string> {
         return `Hello, ${name}!`
       }
@@ -48,8 +48,8 @@ describe('Callable decorator', () => {
 
   it('should call a registered method successfully via prompt', async () => {
     let methodCalled = false
-    class TestChat extends OpenAIAssistantChat {
-      @OpenAIAssistantChat.Callable('Greets a user by name.')
+    class TestChat extends OpenAIAssistant {
+      @OpenAIAssistant.Callable('Greets a user by name.')
       public async greet(name: string): Promise<string> {
         methodCalled = true
         return `Hello, ${name}!`
