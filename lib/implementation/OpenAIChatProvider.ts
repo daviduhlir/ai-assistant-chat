@@ -75,6 +75,9 @@ export class OpenAIChatProvider extends AIProvider {
     if (this.options.summarizeAfter && thread.messages.length > this.options.summarizeAfter) {
       await this.summarizeMessages(threadId)
     }
+    if (!message.timestamp) {
+      message.timestamp = Date.now()
+    }
     thread.history.push(message)
     thread.messages.push(message)
     this.threads.set(threadId, thread)
@@ -91,6 +94,9 @@ export class OpenAIChatProvider extends AIProvider {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
     const result = await this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages])
+    if (!result.timestamp) {
+      result.timestamp = Date.now()
+    }
     thread.messages.push(result)
     thread.history.push(result)
     return result
@@ -204,7 +210,7 @@ export class OpenAIChatProvider extends AIProvider {
       },
       ...thread.messages,
     ])
-    thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.content}` }]
+    thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.content}`, timestamp: Date.now() }]
     this.threads.set(threadId, thread)
   }
 }

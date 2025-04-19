@@ -12,12 +12,15 @@ export type ChatMessageInputContent =
 
 export type ChatMessageOutputContent = string
 
-export interface ChatOutputMessage {
+export interface ChatMessageBase {
   role: string
+  timestamp?: number
+}
+
+export interface ChatOutputMessage extends ChatMessageBase {
   content: ChatMessageOutputContent
 }
-export interface ChatInputMessage {
-  role: string
+export interface ChatInputMessage extends ChatMessageBase {
   content: ChatMessageInputContent
 }
 export type ChatMessage = ChatInputMessage | ChatOutputMessage
