@@ -22,7 +22,7 @@ async function main() {
 
   // Create an instance of AssistantChat
   const chat = new MyChat(openAI, 'You are a helpful assistant.', [], {
-    type: 'thread',
+    type: 'chat',
   })
 
   // Send a prompt to the assistant

@@ -180,6 +180,7 @@ export class Assistant {
     await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: prompt })
 
     let itterations = 0
+    const preambles = []
     while (itterations < limit) {
       itterations++
       const response = await this.aiProvider.executeThread(threadId)
@@ -194,6 +195,9 @@ export class Assistant {
       const extracted = ResponsesUtils.extractTargetAndBody(ResponsesUtils.parseResponse(response.content))
 
       if (extracted.target === 'system') {
+        if (extracted.preamble) {
+          preambles.push(extracted.preamble)
+        }
         try {
           const parsed = ResponsesUtils.parseResponse(extracted.body)
           const callParsed = FunctionUtils.parseMethodCall(parsed)
@@ -213,7 +217,11 @@ export class Assistant {
           })
         }
       } else {
-        await this.aiProvider.addMessageToThread(threadId, { role: response.role, content: extracted.body })
+        // message to user
+        await this.aiProvider.addMessageToThread(threadId, {
+          role: response.role,
+          content: `${preambles.length ? `${preambles.join('\n')}\n` : ``}${extracted.body}`,
+        })
         this.isBussy = false
         return extracted.body
       }
@@ -258,6 +266,21 @@ export class Assistant {
   public clear() {
     this.isBussy = false
     this.aiProvider.removeThread(this.threadId)
+  }
+
+  /***************************************
+   *
+   * Callables implementation
+   *
+   ***************************************/
+
+  /**
+   * Search in history
+   */
+  @Assistant.Callable('Search by text in history of chat messages')
+  public async searchHistory(text: string): Promise<string> {
+    const threadId = await this.awaitThreadId()
+    return this.aiProvider.searchHistory(threadId, text)
   }
 
   /***************************************

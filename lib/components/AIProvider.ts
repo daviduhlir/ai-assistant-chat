@@ -45,4 +45,11 @@ export abstract class AIProvider {
    * Remove thread from memory
    */
   abstract removeThread(threadId: string): Promise<void>
+
+  /**
+   * Try to search in history
+   */
+  async searchHistory(threadId: string, text: string): Promise<string> {
+    return 'nothing found, history is not implemented'
+  }
 }

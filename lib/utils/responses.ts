@@ -2,17 +2,21 @@ export class ResponsesUtils {
   /**
    * @brief Extracts the target and body from a message.
    * @param text The input text to parse.
-   * @returns An object containing `target` (string or null) and `body` (message body).
+   * @returns An object containing `target` (string or null), `body` (message body), and `preamble` (string or null).
    */
-  public static extractTargetAndBody(text: string): { target: string | null; body: string } {
+  public static extractTargetAndBody(text: string): { target: string | null; body: string; preamble: string | null } {
     const trimmedText = text.trim() // Odstranění nadbytečných mezer a nových řádků na začátku a na konci
-    const match = trimmedText.match(/^TARGET\s+([^\n]+)\n([\s\S]*)$/)
+    const match = trimmedText.match(/([\s\S]*?)TARGET\s+([^\n]+)\n([\s\S]*)$/)
+
     if (!match) {
-      return { target: null, body: trimmedText }
+      return { target: null, body: trimmedText, preamble: null }
     }
-    const target = match[1].trim()
-    const body = match[2].trim()
-    return { target, body }
+
+    const preamble = match[1].trim() // Text před řádkem TARGET
+    const target = match[2].trim() // Cíl (např. SYSTEM)
+    const body = match[3].trim() // Zbytek textu po TARGET
+
+    return { target, body, preamble: preamble?.trim?.() || null }
   }
 
   /**

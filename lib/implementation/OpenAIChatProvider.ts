@@ -33,7 +33,7 @@ export class OpenAIChatProvider extends AIProvider {
     super()
   }
 
-  protected threads: Map<string, { instructions: string; messages: ChatMessage[] }> = new Map()
+  protected threads: Map<string, { instructions: string; messages: ChatMessage[]; history: ChatMessage[] }> = new Map()
 
   /**
    * Gets whole messages history
@@ -58,7 +58,7 @@ export class OpenAIChatProvider extends AIProvider {
    */
   public async createThread(instructions: string, messages: ChatMessage[] = []): Promise<string> {
     const threadId = randomHash()
-    this.threads.set(threadId, { messages, instructions })
+    this.threads.set(threadId, { messages, instructions, history: [...messages] })
     return threadId
   }
 
@@ -75,6 +75,7 @@ export class OpenAIChatProvider extends AIProvider {
     if (this.options.summarizeAfter && thread.messages.length > this.options.summarizeAfter) {
       await this.summarizeMessages(threadId)
     }
+    thread.history.push(message)
     thread.messages.push(message)
     this.threads.set(threadId, thread)
   }
@@ -89,7 +90,10 @@ export class OpenAIChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    return this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages])
+    const result = await this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages])
+    thread.messages.push(result)
+    thread.history.push(result)
+    return result
   }
 
   /**
@@ -102,6 +106,29 @@ export class OpenAIChatProvider extends AIProvider {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
     this.threads.delete(threadId)
+  }
+
+  /**
+   * Try to search in history
+   */
+  public async searchHistory(threadId: string, text: string) {
+    const thread = this.threads.get(threadId)
+    if (!thread) {
+      throw new Error(`Thread with ID ${threadId} not found.`)
+    }
+    const found = thread.history.find(message => {
+      if (typeof message.content === 'string') {
+        return message.content.toLowerCase().includes(text.toLowerCase())
+      } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
+        const bufferMessage: ChatMessageInputBufferContent = message.content as any
+        return bufferMessage.message?.toLowerCase().includes(text.toLowerCase())
+      }
+    })
+
+    if (!found) {
+      return 'Nothing was found in the history.'
+    }
+    return typeof found.content === 'string' ? (found.content as string) : `Binnary with message ${(found.content as any).message}`
   }
 
   /**
@@ -153,6 +180,7 @@ export class OpenAIChatProvider extends AIProvider {
       temperature: this.options.temperature,
       messages: messagesToSend as any,
     })
+
     return {
       role: response.choices[0].message.role,
       content: response.choices[0].message.content || '',
@@ -172,7 +200,7 @@ export class OpenAIChatProvider extends AIProvider {
     const summaryResult = await this.runCompletion([
       {
         role: 'system',
-        content: `Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.`,
+        content: `Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed. Please keep details about actions you did and global directives, that user sent you.`,
       },
       ...thread.messages,
     ])
