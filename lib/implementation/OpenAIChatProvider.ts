@@ -34,6 +34,33 @@ export class OpenAIChatProvider extends AIProvider {
   }
 
   protected threads: Map<string, { instructions: string; messages: ChatMessage[]; history: ChatMessage[] }> = new Map()
+  protected SUMMARIZE_PROMPT = `
+    Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.
+    - You may create multiple summaries if the conversation contains distinct topics.
+    - Keep any global instructions or preferences that the user has shared.
+    - Include key actions you (the assistant) performed.
+    - Preserve the last active task (if there is one) as raw messages with roles, not summarized.
+      - Keep at most the last 5 messages related to the active task.
+      - If there is no active task, you can omit this part.
+
+    Format the output as:
+
+    ### Summary
+    [...summary by topics...]
+
+    ### Last Active Task (if any)
+    User: ...
+    Assistant: ...
+    ...
+  `
+
+  /**
+   * Sets the summarize prompt.
+   * @param prompt The prompt to set for summarization.
+   */
+  public setSummarizePrompt(prompt: string): void {
+    this.SUMMARIZE_PROMPT = prompt
+  }
 
   /**
    * Gets whole messages history
@@ -48,7 +75,7 @@ export class OpenAIChatProvider extends AIProvider {
    * // ]
    */
   public getMessages(threadId: string): ChatMessage[] {
-    return this.threads.get(threadId)?.messages || []
+    return this.threads.get(threadId)?.history || []
   }
 
   /**
@@ -115,7 +142,11 @@ export class OpenAIChatProvider extends AIProvider {
   }
 
   /**
-   * Try to search in history
+   * Try to search in history by text or time range
+   * @param threadId
+   * @param text
+   * @param timeRange
+   * @returns
    */
   public async searchHistory(threadId: string, text?: string, timeRange?: [number, number]) {
     const thread = this.threads.get(threadId)
@@ -146,7 +177,7 @@ export class OpenAIChatProvider extends AIProvider {
       return 'Nothing was found in the history.'
     }
     return found.map(message => {
-      const content = typeof message.content === 'string' ? (message.content as string) : `Binnary with message ${(message.content as any).message}`
+      const content = typeof message.content === 'string' ? (message.content as string) : `${(message.content as any).message} \n [binnary]`
       return `${message.role}: ${content}`
     }).join('\n')
   }
@@ -220,25 +251,7 @@ export class OpenAIChatProvider extends AIProvider {
     const summaryResult = await this.runCompletion([
       {
         role: 'system',
-        content: `
-        Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.
-        - You may create multiple summaries if the conversation contains distinct topics.
-        - Keep any global instructions or preferences that the user has shared.
-        - Include key actions you (the assistant) performed.
-        - Preserve the last active task (if there is one) as raw messages with roles, not summarized.
-          - Keep at most the last 5 messages related to the active task.
-          - If there is no active task, you can omit this part.
-
-        Format the output as:
-
-        ### Summary
-        [...summary by topics...]
-
-        ### Last Active Task (if any)
-        User: ...
-        Assistant: ...
-        ...
-        `,
+        content: this.SUMMARIZE_PROMPT,
       },
       ...thread.messages,
     ])
