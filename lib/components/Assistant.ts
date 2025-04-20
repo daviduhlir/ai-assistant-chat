@@ -17,8 +17,8 @@
  * const openAI = new OpenAI({ apiKey: 'your-api-key' });
  *
  * // Register a callable method
- * class MyChat extends Chat {
- *   @Chat.Callable('Get user ID by name.')
+ * class MyChat extends OpenAIAssistant {
+ *   @OpenAIAssistant.Callable('Get user ID by name.')
  *   public async getUserId(name: string): Promise<string> {
  *     return `42`;
  *   }
