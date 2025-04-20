@@ -117,24 +117,38 @@ export class OpenAIChatProvider extends AIProvider {
   /**
    * Try to search in history
    */
-  public async searchHistory(threadId: string, text: string) {
+  public async searchHistory(threadId: string, text?: string, timeRange?: [number, number]) {
     const thread = this.threads.get(threadId)
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    const found = thread.history.find(message => {
-      if (typeof message.content === 'string') {
-        return message.content.toLowerCase().includes(text.toLowerCase())
-      } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
-        const bufferMessage: ChatMessageInputBufferContent = message.content as any
-        return bufferMessage.message?.toLowerCase().includes(text.toLowerCase())
-      }
-    })
+    let found = thread.history
+    if (text) {
+      found = thread.history.filter(message => {
+        if (typeof message.content === 'string') {
+          return message.content.toLowerCase().includes(text.toLowerCase())
+        } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
+          const bufferMessage: ChatMessageInputBufferContent = message.content as any
+          return bufferMessage.message?.toLowerCase().includes(text.toLowerCase())
+        }
+      })
+    }
+    if (Array.isArray(timeRange)) {
+      found = found.filter(message => {
+        if (message.timestamp) {
+          return (!timeRange[0] || message.timestamp >= timeRange[0]) && (!timeRange[1] || message.timestamp <= timeRange[1])
+        }
+        return false
+      })
+    }
 
-    if (!found) {
+    if (!found?.length) {
       return 'Nothing was found in the history.'
     }
-    return typeof found.content === 'string' ? (found.content as string) : `Binnary with message ${(found.content as any).message}`
+    return found.map(message => {
+      const content = typeof message.content === 'string' ? (message.content as string) : `Binnary with message ${(message.content as any).message}`
+      return `${message.role}: ${content}`
+    }).join('\n')
   }
 
   /**
@@ -206,7 +220,25 @@ export class OpenAIChatProvider extends AIProvider {
     const summaryResult = await this.runCompletion([
       {
         role: 'system',
-        content: `Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed. Please keep details about actions you did and global directives, that user sent you.`,
+        content: `
+        Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.
+        - You may create multiple summaries if the conversation contains distinct topics.
+        - Keep any global instructions or preferences that the user has shared.
+        - Include key actions you (the assistant) performed.
+        - Preserve the last active task (if there is one) as raw messages with roles, not summarized.
+          - Keep at most the last 5 messages related to the active task.
+          - If there is no active task, you can omit this part.
+
+        Format the output as:
+
+        ### Summary
+        [...summary by topics...]
+
+        ### Last Active Task (if any)
+        User: ...
+        Assistant: ...
+        ...
+        `,
       },
       ...thread.messages,
     ])

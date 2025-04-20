@@ -49,7 +49,7 @@ export abstract class AIProvider {
   /**
    * Try to search in history
    */
-  async searchHistory(threadId: string, text: string): Promise<string> {
+  async searchHistory(threadId: string, text?: string, timeRange?: [number, number]): Promise<string> {
     return 'nothing found, history is not implemented'
   }
 }

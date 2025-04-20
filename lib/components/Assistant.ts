@@ -277,10 +277,16 @@ export class Assistant {
   /**
    * Search in history
    */
-  @Assistant.Callable('Search by text in history of chat messages')
-  public async searchHistory(text: string): Promise<string> {
+  @Assistant.Callable(`
+    Search by text in history of chat messages.
+    You can use time range to specify the search.
+    If you dont want to use text for search, just use null for text property.
+    You can also use range like [null, 1745130289917].
+    Timerange is always timestamp.
+  `)
+  public async searchHistory(text?: string, timeRange?: [number, number]): Promise<string> {
     const threadId = await this.awaitThreadId()
-    return this.aiProvider.searchHistory(threadId, text)
+    return this.aiProvider.searchHistory(threadId, text, timeRange)
   }
 
   /***************************************
