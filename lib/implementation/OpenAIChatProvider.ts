@@ -14,7 +14,7 @@ export const OpenAIChatProviderOptionsDefault: OpenAIChatProviderOptions = {
   model: 'gpt-4o-mini',
   temperature: 0.2,
   summarizeAfter: 10,
-  summarizeKeepLastMessages: 5,
+  summarizeKeepLastMessages: 2,
 }
 
 /**
@@ -38,22 +38,24 @@ export class OpenAIChatProvider extends AIProvider {
   protected threads: Map<string, { instructions: string; messages: ChatMessage[]; history: ChatMessage[] }> = new Map()
   protected SUMMARIZE_PROMPT = (summarizeKeepLastMessages: number) => `
     Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.
+
     - You may create multiple summaries if the conversation contains distinct topics.
     - Keep any global instructions or preferences that the user has shared.
     - Include key actions you (the assistant) performed.
     - Preserve the last active task (if there is one) as raw messages with roles, not summarized.
       - Keep at most the last ${summarizeKeepLastMessages} messages related to the active task.
-      - If there is no active task, you can omit this part.
+      - If any of these messages exceed 1000 words, replace that message with its own concise summary (max. 100 words) prefixed with “Summary of long message:”.
+      - If there is no active task, you can omit this section.
 
-    Format the output as:
+    Format the output exactly as:
 
     ### Summary
-    [...summary by topics...]
+    […summary by topics…]
 
     ### Last Active Task (if any)
-    User: ...
-    Assistant: ...
-    ...
+    User: …
+    Assistant: …
+    …
   `
 
   /**
@@ -253,7 +255,7 @@ export class OpenAIChatProvider extends AIProvider {
     const summaryResult = await this.runCompletion([
       {
         role: 'system',
-        content: this.SUMMARIZE_PROMPT(this.options.summarizeKeepLastMessages || 5),
+        content: this.SUMMARIZE_PROMPT(this.options.summarizeKeepLastMessages || 2),
       },
       ...thread.messages,
     ])
