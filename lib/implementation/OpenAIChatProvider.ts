@@ -7,12 +7,14 @@ export interface OpenAIChatProviderOptions {
   model: string
   temperature: number
   summarizeAfter?: number
+  summarizeKeepLastMessages?: number
 }
 
 export const OpenAIChatProviderOptionsDefault: OpenAIChatProviderOptions = {
-  model: 'gpt-3.5-turbo',
+  model: 'gpt-4o-mini',
   temperature: 0.2,
   summarizeAfter: 10,
+  summarizeKeepLastMessages: 5,
 }
 
 /**
@@ -34,13 +36,13 @@ export class OpenAIChatProvider extends AIProvider {
   }
 
   protected threads: Map<string, { instructions: string; messages: ChatMessage[]; history: ChatMessage[] }> = new Map()
-  protected SUMMARIZE_PROMPT = `
+  protected SUMMARIZE_PROMPT = (summarizeKeepLastMessages: number) => `
     Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.
     - You may create multiple summaries if the conversation contains distinct topics.
     - Keep any global instructions or preferences that the user has shared.
     - Include key actions you (the assistant) performed.
     - Preserve the last active task (if there is one) as raw messages with roles, not summarized.
-      - Keep at most the last 5 messages related to the active task.
+      - Keep at most the last ${summarizeKeepLastMessages} messages related to the active task.
       - If there is no active task, you can omit this part.
 
     Format the output as:
@@ -58,7 +60,7 @@ export class OpenAIChatProvider extends AIProvider {
    * Sets the summarize prompt.
    * @param prompt The prompt to set for summarization.
    */
-  public setSummarizePrompt(prompt: string): void {
+  public setSummarizePrompt(prompt: (summarizeKeepLastMessages: number) => string): void {
     this.SUMMARIZE_PROMPT = prompt
   }
 
@@ -251,7 +253,7 @@ export class OpenAIChatProvider extends AIProvider {
     const summaryResult = await this.runCompletion([
       {
         role: 'system',
-        content: this.SUMMARIZE_PROMPT,
+        content: this.SUMMARIZE_PROMPT(this.options.summarizeKeepLastMessages || 5),
       },
       ...thread.messages,
     ])
