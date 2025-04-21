@@ -42,6 +42,8 @@ export type ChatCallable = {
   reference: (...params: any[]) => Promise<any>
   signature: string
   description: string
+  tool: any
+  paramsMap: string[]
 }
 
 export interface AssistantOptions {
@@ -110,11 +112,32 @@ export class Assistant {
         throw new Error(`@Callable can only be applied to methods.`)
       }
 
+      const functionMetadata = FunctionUtils.extractMethodMetadata(target, memberName as string)
       let callables = Reflect.getMetadata(isCallableKey, target) || {}
       callables[memberName] = {
         reference: descriptor.value,
-        signature: signature ? signature : FunctionUtils.extractMethodSignature(target, memberName as string),
+        signature: signature ? signature : functionMetadata.signature,
         description,
+        paramsMap: functionMetadata.parameters.map(param => param.name),
+        tool: {
+          type: 'function',
+          function: {
+            name: functionMetadata.name,
+            description,
+            parameters: {
+              type: 'object',
+              properties: functionMetadata.parameters.reduce((acc, param) => {
+                acc[param.name] = {
+                  type: param.type,
+                  description: param.name,
+                  ...(param.default ? { default: param.default } : {}),
+                }
+                return acc
+              }, {}),
+              required: functionMetadata.parameters.filter(param => !param.default).map(param => param.name),
+            },
+          },
+        },
       }
       Reflect.defineMetadata(isCallableKey, callables, target)
     }

@@ -45,7 +45,10 @@ export class FunctionUtils {
    * @param memberName The name of the method.
    * @returns The method signature in TypeScript format.
    */
-  public static extractMethodSignature(target: any, memberName: string): string {
+  public static extractMethodMetadata(
+    target: any,
+    memberName: string,
+  ): { signature: string; returnType: string; name: string; parameters: { name: string; type: string; default?: string }[] } {
     const method = target[memberName]
     if (typeof method !== 'function') {
       throw new Error(`Method ${memberName} is not a function`)
@@ -55,18 +58,37 @@ export class FunctionUtils {
     const methodString = method.toString()
     const match = methodString.match(/\(([^)]*)\)/)
     if (!match) {
-      return ''
+      return null
     }
     const paramList = match[1]
-    const parameters = paramList
-      .split(',')
-      .map(param => param.trim())
-      .filter(param => param)
 
     // Extract parameter types using Reflect metadata
     const paramTypes = Reflect.getMetadata('design:paramtypes', target, memberName) || []
-    const signature = parameters.map((name, index) => `${name}: ${paramTypes[index]?.name || 'any'}`).join(', ')
+    const parameters: { name: string; type: string; default?: string }[] = paramList
+      .split(',')
+      .map(param =>
+        param
+          .trim()
+          .split('=')
+          .map(paramParts => paramParts.trim()),
+      )
+      .map(param => ({ name: param[0], default: param[1] }))
+      .filter(param => param.name)
+      .map((param, index) => ({
+        name: param.name,
+        default: param.default,
+        type: paramTypes[index]?.name,
+      }))
 
-    return `${memberName}(${signature})`
+    const signature = parameters
+      .map((param, index) => `${param.name}: ${param.type || 'any'}${param.default ? ` = ${param.default}` : ``}`)
+      .join(', ')
+
+    return {
+      name: memberName,
+      parameters,
+      signature: `${memberName}(${signature})`,
+      returnType: Reflect.getMetadata('design:returntype', target, memberName)?.name || 'void',
+    }
   }
 }

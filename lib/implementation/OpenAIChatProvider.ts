@@ -180,10 +180,12 @@ export class OpenAIChatProvider extends AIProvider {
     if (!found?.length) {
       return 'Nothing was found in the history.'
     }
-    return found.map(message => {
-      const content = typeof message.content === 'string' ? (message.content as string) : `${(message.content as any).message} \n [binnary]`
-      return `${message.role}: ${content}`
-    }).join('\n')
+    return found
+      .map(message => {
+        const content = typeof message.content === 'string' ? (message.content as string) : `${(message.content as any).message} \n [binnary]`
+        return `${message.role}: ${content}`
+      })
+      .join('\n')
   }
 
   /**
