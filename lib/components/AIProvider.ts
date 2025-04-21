@@ -1,7 +1,14 @@
-import { ChatMessage, ChatOutputMessage } from '../interfaces'
+import { ChatInputMessage, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 
-export interface ChatExecutionResult extends ChatOutputMessage {
-  usage: number
+export type ChatExecutionResult = ChatOutputMessage | ChatOutputToolCallMessage
+export interface AIProviderFunction {
+  name: string
+  description: string
+  parameters: {
+    name: string
+    default: string
+    type: string
+  }[]
 }
 
 /**
@@ -29,12 +36,12 @@ export abstract class AIProvider {
   /**
    * Creates thread and returns thread ID
    */
-  abstract createThread(instructions: string, messages: ChatMessage[]): Promise<string>
+  abstract createThread(instructions: string, tools?: AIProviderFunction[]): Promise<string>
 
   /**
    * Add message to thread
    */
-  abstract addMessageToThread(threadId: string, message: ChatMessage): Promise<void>
+  abstract addMessageToThread(threadId: string, message: ChatInputMessage): Promise<void>
 
   /**
    * Execute thread and returns result

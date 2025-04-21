@@ -11,7 +11,6 @@ The `Assistant` class provides a framework for managing interactions with AI cha
 - **AI Provider Abstraction**: Integrates with different AI providers through the `AIProvider` interface, allowing flexibility and extensibility.
 - **Assistant Response Parsing**: Parses responses from the assistant to determine whether to respond to the user or execute a system-level action.
 - **Extensibility**: Allows developers to define custom methods that the assistant can call during interactions.
-- **Thread or Chat Mode**: Configure the assistant to operate in either thread-based or chat-based mode using the `options` parameter.
 
 ---
 
@@ -21,23 +20,21 @@ The `Assistant` class provides a framework for managing interactions with AI cha
 
 ```typescript
 import OpenAI from 'openai';
-import { Assistant } from './Assistant';
+import { OpenAIAssistant } from './OpenAIAssistant';
 
 // Create an instance of OpenAI client
 const openAI = new OpenAI({ apiKey: 'your-api-key' });
 
 // Register a callable method
-class MyAssistant extends Assistant {
-  @Assistant.Callable('Get user ID by name.')
+class MyAssistant extends OpenAIAssistant {
+  @OpenAIAssistant.Callable('Get user ID by name.')
   public async getUserId(name: string): Promise<string> {
     return `42`;
   }
 }
 
 // Create an instance of Assistant
-const assistant = new MyAssistant(openAI, 'You are a helpful assistant.', {
-  mode: 'thread', // or 'chat'
-});
+const assistant = new MyAssistant(openAI, 'You are a helpful assistant.');
 
 // Send a prompt
 const response = await assistant.prompt('What is my user ID?', 5);
@@ -57,17 +54,13 @@ The `Assistant` class provides the core framework for managing interactions with
 ```typescript
 constructor(
   aiProvider: AIProvider,
-  systemInstructions: string,
-  options: { mode: 'chat' | 'thread' },
-  messages?: ChatMessage[]
+  systemInstructions: string
 )
 ```
 
 - **Parameters**:
   - `aiProvider`: An instance of a class implementing the `AIProvider` interface.
   - `systemInstructions`: A string describing the assistant's role and behavior.
-  - `options`: Configuration options for the assistant, including the mode (`chat` or `thread`).
-  - `messages`: (Optional) A history of chat messages.
 
 - **Description**: Initializes a new instance of the `Assistant` class.
 
@@ -77,81 +70,72 @@ constructor(
 
 The `AIProvider` is an abstract base class that defines the interface for AI providers. It provides an abstraction layer for integrating different AI providers.
 
-#### `execute`
+#### `createThread`
 
 ```typescript
-abstract execute(messages: ChatMessage[]): Promise<ChatExecutionResult>;
+abstract createThread(instructions: string, tools?: AIProviderFunction[]): Promise<string>;
 ```
 
 - **Parameters**:
-  - `messages`: An array of chat messages representing the conversation history.
+  - `instructions`: A string containing the system instructions for the assistant.
+  - `tools`: (Optional) A list of tools (callable methods) available to the assistant.
 
-- **Returns**: A promise that resolves to a `ChatExecutionResult` containing the AI's response and token usage.
+- **Returns**: A promise that resolves to a thread ID.
 
-- **Description**: Executes a chat or thread interaction with the AI model. This method must be implemented by specific AI provider implementations.
+#### `addMessageToThread`
+
+```typescript
+abstract addMessageToThread(threadId: string, message: ChatInputMessage): Promise<void>;
+```
+
+- **Parameters**:
+  - `threadId`: The ID of the thread to which the message should be added.
+  - `message`: The message to add.
+
+#### `executeThread`
+
+```typescript
+abstract executeThread(threadId: string): Promise<ChatExecutionResult>;
+```
+
+- **Parameters**:
+  - `threadId`: The ID of the thread to execute.
+
+- **Returns**: A promise that resolves to a `ChatExecutionResult` containing the assistant's response.
+
+#### `removeThread`
+
+```typescript
+abstract removeThread(threadId: string): Promise<void>;
+```
+
+- **Parameters**:
+  - `threadId`: The ID of the thread to remove.
 
 ---
 
-### `OpenAIProvider`
+### `OpenAIAssistant`
 
-The `OpenAIProvider` class is an implementation of the `AIProvider` interface for OpenAI. It handles communication with OpenAI's chat or thread APIs.
+The `OpenAIAssistant` class is a specialized implementation of the `Assistant` class for OpenAI. It simplifies the integration by automatically configuring the `OpenAIChatProvider` with the provided options.
 
 #### `constructor`
 
 ```typescript
 constructor(
   openAI: OpenAI,
-  options?: { model: string; temperature: number }
+  systemInstructions: string,
+  options?: Partial<OpenAIChatProviderOptions>
 )
 ```
 
 - **Parameters**:
   - `openAI`: An instance of the OpenAI client.
+  - `systemInstructions`: A string describing the assistant's role and behavior.
   - `options`: (Optional) Configuration options for the OpenAI provider, such as the model and temperature.
-
-#### `execute`
-
-```typescript
-public async execute(messages: ChatMessage[]): Promise<ChatExecutionResult>;
-```
-
-- **Parameters**:
-  - `messages`: The list of messages to send.
-
-- **Returns**: A promise that resolves to a `ChatExecutionResult` containing the assistant's response, role, and token usage.
-
-- **Description**: Sends a chat or thread message to OpenAI and retrieves the response.
 
 ---
 
 ## Public Methods
-
-### `getMessages`
-
-The `getMessages` method retrieves the entire chat or thread history between the user and the assistant. It excludes system-level communication and the base instructional prompt, focusing solely on the user-assistant interaction.
-
-** available only for chat type of assistant **
-
-#### Example
-
-```typescript
-const messages = assistant.getMessages();
-console.log(messages);
-/*
-Output:
-[
-  { role: 'user', content: 'Hello?' },
-  { role: 'assistant', content: 'Hello, user!' },
-  { role: 'user', content: 'What is my user ID?' },
-  { role: 'assistant', content: 'Your user ID is 42.' }
-]
-*/
-```
-
-- **Returns**: An array of chat messages exchanged between the user and the assistant.
-- **Description**: This method is useful for debugging or analyzing the conversation history without including system-level details or the base prompt.
-
----
 
 ### `prompt`
 
@@ -206,18 +190,12 @@ export interface ChatExecutionResult extends ChatMessage {
 
 ## How It Works
 
-1. **Initialization**: Create an instance of `Assistant` with an AI provider, system instructions, and options (`chat` or `thread` mode).
+1. **Initialization**: Create an instance of `Assistant` or `OpenAIAssistant` with an AI provider and system instructions.
 2. **Register Methods**: Use the `@Assistant.Callable` decorator to register methods that the assistant can invoke.
 3. **Send Prompts**: Use the `prompt` method to send user input to the assistant and process its response.
 4. **AI Provider Integration**:
    - The `AIProvider` interface allows integration with different AI providers.
-   - The `OpenAIProvider` is a specific implementation for OpenAI.
-
----
-
-## Custom Base Prompt
-
-You can customize the base prompt used by the assistant by calling the `setBasePrompt` method. This allows you to define how the assistant interprets its role and interacts with the user or system.
+   - The `OpenAIChatProvider` is a specific implementation for OpenAI.
 
 ---
 

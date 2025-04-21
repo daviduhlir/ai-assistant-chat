@@ -64,6 +64,11 @@ export class FunctionUtils {
 
     // Extract parameter types using Reflect metadata
     const paramTypes = Reflect.getMetadata('design:paramtypes', target, memberName) || []
+
+    const allowedTypes = ['String', 'Number', 'Boolean']
+    if (paramTypes.some(type => allowedTypes.indexOf(type.name) === -1)) {
+      throw new Error(`Allowed type are ${allowedTypes.join(', ')} only in parameter types`)
+    }
     const parameters: { name: string; type: string; default?: string }[] = paramList
       .split(',')
       .map(param =>
@@ -77,7 +82,7 @@ export class FunctionUtils {
       .map((param, index) => ({
         name: param.name,
         default: param.default,
-        type: paramTypes[index]?.name,
+        type: paramTypes[index]?.name?.toLowerCase?.() || 'any',
       }))
 
     const signature = parameters
