@@ -107,6 +107,10 @@ export class OpenAIChatProvider extends AIProvider {
       message.timestamp = Date.now()
     }
 
+    if (!message.functionCallId && this.toolInProgress) {
+      throw new Error('You need to wait for the tool to finish before sending a new message.')
+    }
+
     const convertedMessage = OpenAIChatProvider.transformInputMessage(message)
     thread.history.push(convertedMessage)
     thread.messages.push(convertedMessage)
@@ -131,6 +135,7 @@ export class OpenAIChatProvider extends AIProvider {
     thread.history.push(result)
 
     if (result?.tool_calls) {
+      this.toolInProgress = true
       return {
         ...result,
         functionCall: result.tool_calls.map((tool_call: any) => {
@@ -146,6 +151,7 @@ export class OpenAIChatProvider extends AIProvider {
         }),
       }
     }
+    this.toolInProgress = false
     return result
   }
 
@@ -223,6 +229,7 @@ export class OpenAIChatProvider extends AIProvider {
    * Internal methods
    *
    */
+  protected toolInProgress: boolean = false
 
   /**
    * Execute chat internaly
@@ -268,6 +275,9 @@ export class OpenAIChatProvider extends AIProvider {
    * @param threadId
    */
   protected async summarizeMessages(threadId: string): Promise<void> {
+    if (this.toolInProgress) {
+      return
+    }
     const thread = this.threads.get(threadId)
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
