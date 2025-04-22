@@ -33,6 +33,7 @@ import 'reflect-metadata'
 import { AIProvider, AIProviderFunction } from './AIProvider'
 import { ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 import { FunctionUtils } from '../utils/functions'
+import { ResponsesUtils } from '../utils/responses'
 
 // callbale descriptor
 const isCallableKey = Symbol('isCallable')
@@ -179,7 +180,7 @@ export class Assistant {
           content: `${preambles.length ? `${preambles.join('\n')}\n` : ``}${outputMessage.content}`,
         })
         this.isBussy = false
-        return outputMessage.content
+        return ResponsesUtils.parseResponse(outputMessage.content, true)
       }
     }
     this.isBussy = false
