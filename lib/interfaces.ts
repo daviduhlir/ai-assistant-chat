@@ -15,12 +15,23 @@ export type ChatMessageOutputContent = string
 export interface ChatMessageBase {
   role: string
   timestamp?: number
+  functionCallId?: string
 }
 
 export interface ChatOutputMessage extends ChatMessageBase {
   content: ChatMessageOutputContent
 }
+export interface ChatOutputToolCallMessage extends ChatMessageBase {
+  type: string
+  functionCall: {
+    id: string
+    name: string
+    arguments: {
+      name: string
+      value: any
+    }[]
+  }[]
+}
 export interface ChatInputMessage extends ChatMessageBase {
   content: ChatMessageInputContent
 }
-export type ChatMessage = ChatInputMessage | ChatOutputMessage

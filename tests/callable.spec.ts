@@ -27,7 +27,7 @@ describe('Callable decorator', () => {
 
     expect(greetCallable).to.exist
     expect(greetCallable).to.have.property('description', 'Greets a user by name.')
-    expect(greetCallable).to.have.property('signature').that.includes('greet(name: String)')
+    expect(greetCallable).to.have.property('signature').that.includes('greet(name: string)')
   })
 
   it('should call a registered method successfully', async () => {
@@ -41,30 +41,8 @@ describe('Callable decorator', () => {
     const testChat = new TestChat(openAI as any, 'You are a helpful assistant.')
 
     // Zavolej metodu pomocí `action`
-    const result = await testChat['action']({ call: 'greet', parameters: ['John'] })
+    const result = await testChat['action']('greet', [{name: 'name', value: 'John'}])
 
     expect(result).to.equal('Hello, John!')
-  })
-
-  it('should call a registered method successfully via prompt', async () => {
-    let methodCalled = false
-    class TestChat extends OpenAIAssistant {
-      @OpenAIAssistant.Callable('Greets a user by name.')
-      public async greet(name: string): Promise<string> {
-        methodCalled = true
-        return `Hello, ${name}!`
-      }
-    }
-
-    // Nastav mock odpověď tak, aby volala metodu greet
-    openAI = new OpenAIMockup(['TARGET system\ngreet("John")', 'TARGET user\nSuccess'])
-    const testChat = new TestChat(openAI as any, 'You are a helpful assistant.')
-
-    // Zavolej prompt, který spustí metodu greet
-    const response = await testChat.prompt('Hello?', 5)
-
-    // Ověř, že výstup odpovídá očekávanému výsledku metody greet
-    expect(methodCalled).to.be.true
-    expect(response).to.equal('Success')
   })
 })

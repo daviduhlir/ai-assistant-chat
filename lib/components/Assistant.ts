@@ -30,8 +30,8 @@
  * console.log(response);
  */
 import 'reflect-metadata'
-import { AIProvider } from './AIProvider'
-import { ChatMessage, ChatMessageInputContent } from '../interfaces'
+import { AIProvider, AIProviderFunction } from './AIProvider'
+import { ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 import { FunctionUtils } from '../utils/functions'
 import { ResponsesUtils } from '../utils/responses'
 
@@ -42,13 +42,9 @@ export type ChatCallable = {
   reference: (...params: any[]) => Promise<any>
   signature: string
   description: string
+  tool: AIProviderFunction
+  paramsMap: string[]
 }
-
-export interface AssistantOptions {
-  type: 'chat' | 'thread'
-}
-
-export const AssistantOptionsDefault: AssistantOptions = { type: 'chat' }
 
 /**
  * Chat class
@@ -63,37 +59,11 @@ export class Assistant {
    */
   protected BASE_PROMPT = (callables, roleInstructions: string) => `
   You are an assistant. Your role is described below. You can use the following methods to complete your tasks. Always respond as described:
-
-  - To call a system method:
-    You MUST start your response with the line \`TARGET system\`, followed by the method call on the next line in the exact format:
-    \`methodName(param1, param2, ...)\`.
-    **Do not include any additional text, comments, explanations, or context. Only the method call is allowed.**
-    If you include anything else, the system will reject your response as invalid.
-
-  - To respond to the user:
-    Start your response with the line \`TARGET user\`, followed by your message on the next lines.
-
-  IMPORTANT:
-  - When calling a system method, your response MUST contain only the exact method call in the format specified above.
-  - Do NOT explain what you are doing, do NOT provide context, and do NOT include any additional text before or after the method call.
-  - Any deviation from this format will result in the system rejecting your response.
-  - Always respond with only one message at a time.
-
-  If you want to call a method, always return only the method call without any text around it. For example:
-  \`\`\`
-  TARGET system
-  obtainUserIdByName("David")
-  \`\`\`
-
-  This is the list of methods you can call:
-  \`\`\`markdown
-  ${Object.keys(callables)
-    .map(key => `- ${callables[key].signature} - ${callables[key].description}`)
-    .join('\n')}
-  \`\`\`
-
-  Your role is described here:
+  You can use tools to complete your tasks.
+  Your role is described below:
+  --------------
   ${roleInstructions}
+  --------------
   `
 
   /**
@@ -104,17 +74,24 @@ export class Assistant {
     return function <T extends { [key: string]: any }>(
       target: T,
       memberName: keyof T,
-      descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<string>>,
+      descriptor: TypedPropertyDescriptor<(...args: (string | number | boolean)[]) => Promise<string>>,
     ) {
       if (typeof descriptor.value !== 'function') {
         throw new Error(`@Callable can only be applied to methods.`)
       }
 
+      const functionMetadata = FunctionUtils.extractMethodMetadata(target, memberName as string)
       let callables = Reflect.getMetadata(isCallableKey, target) || {}
       callables[memberName] = {
         reference: descriptor.value,
-        signature: signature ? signature : FunctionUtils.extractMethodSignature(target, memberName as string),
+        signature: signature ? signature : functionMetadata.signature,
         description,
+        paramsMap: functionMetadata.parameters.map(param => param.name),
+        tool: {
+          name: functionMetadata.name,
+          description,
+          parameters: functionMetadata.parameters,
+        } as AIProviderFunction,
       }
       Reflect.defineMetadata(isCallableKey, callables, target)
     }
@@ -126,16 +103,8 @@ export class Assistant {
    * @param systemInstructions Instructions describing the assistant's role.
    * @param messages A history of chat messages.
    */
-  constructor(
-    readonly aiProvider: AIProvider,
-    readonly systemInstructions: string,
-    messages: ChatMessage[] = [],
-    protected assistantOptions: AssistantOptions = AssistantOptionsDefault,
-  ) {
-    if (!['chat', 'thread'].includes(this.assistantOptions.type)) {
-      throw new Error(`Assistant type must be 'chat' or 'thread'`)
-    }
-    this.initialize(messages)
+  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string) {
+    this.initialize()
   }
 
   /**
@@ -143,10 +112,13 @@ export class Assistant {
    * @param messages
    * @returns
    */
-  public async initialize(messages: ChatMessage[] = []) {
+  public async initialize() {
     if (!this.creatingThread) {
       this.creatingThread = true
-      const threadId = await this.aiProvider.createThread(this.BASE_PROMPT(this.callables, this.systemInstructions), messages)
+      const threadId = await this.aiProvider.createThread(
+        this.BASE_PROMPT(this.callables, this.systemInstructions),
+        Object.keys(this.callables).map(key => this.callables[key].tool),
+      )
       this.threadId = threadId
       return this.threadId
     } else {
@@ -185,45 +157,30 @@ export class Assistant {
       itterations++
       const response = await this.aiProvider.executeThread(threadId)
 
-      if (this.assistantOptions.type === 'chat') {
-        await this.aiProvider.addMessageToThread(threadId, { role: response.role, content: response.content })
-      }
-      if (typeof response.content !== 'string') {
-        await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: `ERROR\nyour response have to be a string` })
-        continue
-      }
-      const extracted = ResponsesUtils.extractTargetAndBody(ResponsesUtils.parseResponse(response.content))
-
-      if (extracted.target === 'system') {
-        if (extracted.preamble) {
-          preambles.push(extracted.preamble)
-        }
-        try {
-          const parsed = ResponsesUtils.parseResponse(extracted.body)
-          const callParsed = FunctionUtils.parseMethodCall(parsed)
+      if ((response as ChatOutputToolCallMessage).functionCall) {
+        const outputToolCall = response as ChatOutputToolCallMessage
+        // execute method!
+        for (const toolCall of outputToolCall.functionCall) {
           try {
-            const result = await this.action(callParsed)
-            await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: `RESULT\n${result}` })
+            const result = await this.action(toolCall.name, toolCall.arguments)
+            await this.aiProvider.addMessageToThread(threadId, { role: 'tool', functionCallId: toolCall.id, content: `${result}` })
           } catch (actionError) {
             await this.aiProvider.addMessageToThread(threadId, {
-              role: 'user',
+              role: 'tool',
+              functionCallId: toolCall.id,
               content: `ERROR\nThere was some error when calling action. ${actionError.message}`,
             })
           }
-        } catch (parseError) {
-          await this.aiProvider.addMessageToThread(threadId, {
-            role: 'user',
-            content: `There was some error when parsing target from your response. ${parseError.message}`,
-          })
         }
-      } else {
+      } else if ((response as ChatOutputMessage)?.content) {
+        const outputMessage = response as ChatOutputMessage
         // message to user
         await this.aiProvider.addMessageToThread(threadId, {
           role: response.role,
-          content: `${preambles.length ? `${preambles.join('\n')}\n` : ``}${extracted.body}`,
+          content: `${preambles.length ? `${preambles.join('\n')}\n` : ``}${outputMessage.content}`,
         })
         this.isBussy = false
-        return extracted.body
+        return ResponsesUtils.parseResponse(outputMessage.content, true)
       }
     }
     this.isBussy = false
@@ -281,12 +238,12 @@ export class Assistant {
     Search by text in history of chat messages.
     You can use time range to specify the search.
     If you dont want to use text for search, just use null for text property.
-    You can also use range like [null, 1745130289917].
+    You can also use only from or to in timerange. If you want to use to only, set from to undefined or 0.
     Timerange is always timestamp.
   `)
-  public async searchHistory(text?: string, timeRange?: [number, number]): Promise<string> {
+  public async searchHistory(text?: string, timeRangeFrom?: number, timeRangeTo?: number): Promise<string> {
     const threadId = await this.awaitThreadId()
-    return this.aiProvider.searchHistory(threadId, text, timeRange)
+    return this.aiProvider.searchHistory(threadId, text, [timeRangeFrom, timeRangeTo])
   }
 
   /***************************************
@@ -330,9 +287,16 @@ export class Assistant {
    * @param input An object containing the method name and parameters.
    * @returns The result of the method execution.
    */
-  private async action(input: { call: string; parameters: any[] }): Promise<string> {
-    if (this.callables[input.call]) {
-      return this.callables[input.call].reference.call(this, ...input.parameters)
+  private async action(method: string, args: { name: string; value: any }[]): Promise<string> {
+    if (this.callables[method]) {
+      const parameters = args.map(arg => {
+        const param = this.callables[method].paramsMap.find(p => p === arg.name)
+        if (!param) {
+          throw new Error(`Parameter ${arg.name} not found in method ${method}`)
+        }
+        return arg.value
+      })
+      return this.callables[method].reference.call(this, ...parameters)
     }
     return 'Not implemented or not callable'
   }

@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
-import { ChatInputMessage, ChatMessage, ChatMessageInputBufferContent, ChatMessageOutputContent, ChatOutputMessage } from '../interfaces'
-import { AIProvider, ChatExecutionResult } from '../components/AIProvider'
+import { ChatInputMessage, ChatMessageInputBufferContent } from '../interfaces'
+import { AIProvider, AIProviderFunction, ChatExecutionResult } from '../components/AIProvider'
 import { randomHash } from '../utils'
 
 export interface OpenAIChatProviderOptions {
@@ -31,11 +31,23 @@ export const OpenAIChatProviderOptionsDefault: OpenAIChatProviderOptions = {
  * - The `executeChat` method processes the conversation history and returns the AI's response along with token usage.
  */
 export class OpenAIChatProvider extends AIProvider {
-  constructor(protected openAI: OpenAI, protected options: OpenAIChatProviderOptions = OpenAIChatProviderOptionsDefault) {
+  constructor(
+    protected openAI: OpenAI,
+    protected options: OpenAIChatProviderOptions = OpenAIChatProviderOptionsDefault,
+    readonly initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
+  ) {
     super()
   }
 
-  protected threads: Map<string, { instructions: string; messages: ChatMessage[]; history: ChatMessage[] }> = new Map()
+  protected tools: AIProviderFunction[] = []
+  protected threads: Map<
+    string,
+    {
+      instructions: string
+      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+      history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+    }
+  > = new Map()
   protected SUMMARIZE_PROMPT = (summarizeKeepLastMessages: number) => `
     Your task is to create a concise summary of the conversation so that another assistant can understand what has been discussed.
 
@@ -67,29 +79,14 @@ export class OpenAIChatProvider extends AIProvider {
   }
 
   /**
-   * Gets whole messages history
-   * @returns An array of chat messages exchanged between the user and the assistant.
-   * @example
-   * const messages = assistantChat.getMessages();
-   * console.log(messages);
-   * // Output: [
-   * //   { role: 'user', content: 'Hello?' },
-   * //   { role: 'assistant', content: 'Hello, user!' },
-   * //   { role: 'user', content: 'This is the final response.' }
-   * // ]
-   */
-  public getMessages(threadId: string): ChatMessage[] {
-    return this.threads.get(threadId)?.history || []
-  }
-
-  /**
    * Creates thread
    * @param messages
    * @returns
    */
-  public async createThread(instructions: string, messages: ChatMessage[] = []): Promise<string> {
+  public async createThread(instructions: string, tools: AIProviderFunction[] = []): Promise<string> {
+    this.tools = tools
     const threadId = randomHash()
-    this.threads.set(threadId, { messages, instructions, history: [...messages] })
+    this.threads.set(threadId, { messages: [...this.initialMessages], instructions, history: [...this.initialMessages] })
     return threadId
   }
 
@@ -98,7 +95,7 @@ export class OpenAIChatProvider extends AIProvider {
    * @param threadId
    * @param message
    */
-  public async addMessageToThread(threadId: string, message: ChatMessage): Promise<void> {
+  public async addMessageToThread(threadId: string, message: ChatInputMessage): Promise<void> {
     const thread = this.threads.get(threadId)
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
@@ -109,8 +106,14 @@ export class OpenAIChatProvider extends AIProvider {
     if (!message.timestamp) {
       message.timestamp = Date.now()
     }
-    thread.history.push(message)
-    thread.messages.push(message)
+
+    if (!message.functionCallId && this.toolInProgress) {
+      throw new Error('You need to wait for the tool to finish before sending a new message.')
+    }
+
+    const convertedMessage = OpenAIChatProvider.transformInputMessage(message)
+    thread.history.push(convertedMessage)
+    thread.messages.push(convertedMessage)
     this.threads.set(threadId, thread)
   }
 
@@ -124,12 +127,31 @@ export class OpenAIChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    const result = await this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages])
-    if (!result.timestamp) {
-      result.timestamp = Date.now()
+    const result = await this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages], this.tools)
+    if (!(result as any).timestamp) {
+      ;(result as any).timestamp = Date.now()
     }
     thread.messages.push(result)
     thread.history.push(result)
+
+    if (result?.tool_calls) {
+      this.toolInProgress = true
+      return {
+        ...result,
+        functionCall: result.tool_calls.map((tool_call: any) => {
+          const argsParsed = JSON.parse(tool_call.function.arguments)
+          return {
+            id: tool_call.id,
+            name: tool_call.function.name,
+            arguments: Object.keys(argsParsed).map(key => ({
+              name: key,
+              value: argsParsed[key],
+            })),
+          }
+        }),
+      }
+    }
+    this.toolInProgress = false
     return result
   }
 
@@ -157,10 +179,11 @@ export class OpenAIChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    let found = thread.history
+    const history = thread.history.filter(message => message.content)
+    let found = history
     if (text) {
-      found = thread.history.filter(message => {
-        if (typeof message.content === 'string') {
+      found = history.filter(message => {
+        if (typeof message?.content === 'string') {
           return message.content.toLowerCase().includes(text.toLowerCase())
         } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
           const bufferMessage: ChatMessageInputBufferContent = message.content as any
@@ -170,8 +193,8 @@ export class OpenAIChatProvider extends AIProvider {
     }
     if (Array.isArray(timeRange)) {
       found = found.filter(message => {
-        if (message.timestamp) {
-          return (!timeRange[0] || message.timestamp >= timeRange[0]) && (!timeRange[1] || message.timestamp <= timeRange[1])
+        if ((message as any).timestamp) {
+          return (!timeRange[0] || (message as any).timestamp >= timeRange[0]) && (!timeRange[1] || (message as any).timestamp <= timeRange[1])
         }
         return false
       })
@@ -180,10 +203,25 @@ export class OpenAIChatProvider extends AIProvider {
     if (!found?.length) {
       return 'Nothing was found in the history.'
     }
-    return found.map(message => {
-      const content = typeof message.content === 'string' ? (message.content as string) : `${(message.content as any).message} \n [binnary]`
-      return `${message.role}: ${content}`
-    }).join('\n')
+    return found
+      .map(message => {
+        const content = typeof message.content === 'string' ? (message.content as string) : `${(message.content as any).message} \n [binnary]`
+        return `${message.role}: ${content}`
+      })
+      .join('\n')
+  }
+
+  /**
+   * Get all thread messages without summarization
+   * @param threadId
+   * @returns
+   */
+  public getMessages(threadId: string): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+    const thread = this.threads.get(threadId)
+    if (!thread) {
+      throw new Error(`Thread with ID ${threadId} not found.`)
+    }
+    return thread.history
   }
 
   /**
@@ -191,56 +229,45 @@ export class OpenAIChatProvider extends AIProvider {
    * Internal methods
    *
    */
+  protected toolInProgress: boolean = false
 
   /**
    * Execute chat internaly
    * @param messages
    * @returns
    */
-  protected async runCompletion(messages: ChatMessage[]): Promise<ChatExecutionResult> {
-    const messagesToSend = messages.reduce<ChatInputMessage[]>((acc, message) => {
-      if (typeof message.content === 'string') {
-        return [
-          ...acc,
-          {
-            role: message.role,
-            content: message.content,
-          } as ChatInputMessage,
-        ]
-      } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
-        const bufferMessage: ChatMessageInputBufferContent = message.content as any
-        return [
-          ...acc,
-          {
-            role: message.role,
-            content: {
-              type: 'image_url',
-              image_url: { url: `data:image/jpeg;base64,${bufferMessage.buffer.toString('base64')}` },
-            },
-          } as ChatInputMessage,
-          bufferMessage?.message
-            ? {
-                role: message.role,
-                content: bufferMessage.message,
-              }
-            : null,
-        ].filter(Boolean) as ChatInputMessage[]
-      } else {
-        throw new Error(`Invalid message content type: ${typeof message.content}`)
-      }
-    }, [])
+  protected async runCompletion(
+    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+    tools: AIProviderFunction[] = [],
+  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
+    const preapredTools = tools.map(tool => ({
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: {
+          type: 'object',
+          properties: tool.parameters.reduce((acc, param) => {
+            acc[param.name] = {
+              type: param.type,
+              description: param.name,
+              ...(param.default ? { default: param.default } : {}),
+            }
+            return acc
+          }, {}),
+          required: tool.parameters.filter(param => !param.default).map(param => param.name),
+        },
+      },
+    }))
 
     const response = await this.openAI.chat.completions.create({
       model: this.options.model,
       temperature: this.options.temperature,
-      messages: messagesToSend as any,
+      messages,
+      tools: preapredTools as any,
     })
 
-    return {
-      role: response.choices[0].message.role,
-      content: response.choices[0].message.content || '',
-      usage: response.usage?.total_tokens || 0,
-    }
+    return response.choices[0].message
   }
 
   /**
@@ -248,6 +275,9 @@ export class OpenAIChatProvider extends AIProvider {
    * @param threadId
    */
   protected async summarizeMessages(threadId: string): Promise<void> {
+    if (this.toolInProgress) {
+      return
+    }
     const thread = this.threads.get(threadId)
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
@@ -259,7 +289,34 @@ export class OpenAIChatProvider extends AIProvider {
       },
       ...thread.messages,
     ])
-    thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.content}`, timestamp: Date.now() }]
-    this.threads.set(threadId, thread)
+    if (summaryResult?.content) {
+      thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.content}` }]
+      this.threads.set(threadId, thread)
+    }
+  }
+
+  /**
+   * Transform input message to OpenAI format
+   */
+  protected static transformInputMessage(message: ChatInputMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+    if (typeof message.content === 'string') {
+      return {
+        role: message.role as any,
+        content: message.content,
+        tool_call_id: message.functionCallId,
+      }
+    } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
+      const bufferMessage: ChatMessageInputBufferContent = message.content as any
+      return {
+        role: message.role as any,
+        tool_call_id: message.functionCallId,
+        content: {
+          type: 'image_url',
+          image_url: { url: `data:image/jpeg;base64,${bufferMessage.buffer.toString('base64')}` },
+        } as any,
+      }
+    } else {
+      throw new Error(`Invalid message content type: ${typeof message.content}`)
+    }
   }
 }

@@ -1,26 +1,6 @@
 import OpenAI from 'openai'
-import { Assistant, AssistantOptions } from '../components/Assistant'
+import { Assistant } from '../components/Assistant'
 import { OpenAIChatProvider, OpenAIChatProviderOptions, OpenAIChatProviderOptionsDefault } from './OpenAIChatProvider'
-import { ChatMessage } from '../interfaces'
-import { OpenAIThreadProvider, OpenAIThreadProviderOptions, OpenAIThreadProviderOptionsDefault } from './OpenAIThreadProvider'
-
-export interface OpenAIAssistantOptions {
-  model: string
-  temperature: number
-  type: 'thread' | 'chat'
-  assistantName?: string // only for thread
-  tools?: any[]
-  summarizeAfter?: number // only for chat
-}
-
-export const OpenAIAssistantOptionsDefault: OpenAIAssistantOptions = {
-  model: 'gpt-4o-mini',
-  temperature: 0.2,
-  type: 'chat',
-  assistantName: 'Assistant',
-  tools: [],
-  summarizeAfter: 10,
-}
 
 /**
  * @class OpenAIAssistant
@@ -60,18 +40,18 @@ export class OpenAIAssistant extends Assistant {
   constructor(
     openAI: OpenAI,
     systemInstructions: string,
-    messages: ChatMessage[] = [],
-    readonly options: Partial<OpenAIAssistantOptions> = OpenAIAssistantOptionsDefault,
+    readonly options: Partial<OpenAIChatProviderOptions> = OpenAIChatProviderOptionsDefault,
+    initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
   ) {
-    super(
-      options.type === 'thread'
-        ? new OpenAIThreadProvider(openAI, { ...OpenAIThreadProviderOptionsDefault, ...options } as OpenAIThreadProviderOptions)
-        : options.type === 'chat'
-        ? new OpenAIChatProvider(openAI, { ...OpenAIChatProviderOptionsDefault, ...options } as OpenAIChatProviderOptions)
-        : null,
-      systemInstructions,
-      messages,
-      options as AssistantOptions,
-    )
+    super(new OpenAIChatProvider(openAI, { ...OpenAIChatProviderOptionsDefault, ...options }, initialMessages), systemInstructions)
+  }
+
+  /**
+   * Get all thread messages without summarization
+   * @param threadId
+   * @returns
+   */
+  public getMessages(threadId: string): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+    return (this.aiProvider as OpenAIChatProvider).getMessages(threadId)
   }
 }
