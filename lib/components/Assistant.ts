@@ -33,7 +33,6 @@ import 'reflect-metadata'
 import { AIProvider, AIProviderFunction } from './AIProvider'
 import { ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 import { FunctionUtils } from '../utils/functions'
-import { ResponsesUtils } from '../utils/responses'
 
 // callbale descriptor
 const isCallableKey = Symbol('isCallable')
@@ -142,12 +141,12 @@ export class Assistant {
    * @throws An error if the maximum number of iterations is exceeded.
    */
   public async prompt(prompt: ChatMessageInputContent, limit: number = 10): Promise<string> {
-    if (this.isBussy) {
+    if (this.isBusy) {
       throw new Error(`Assistant is busy`)
     }
 
     const threadId = await this.awaitThreadId()
-    this.isBussy = true
+    this.isBusy = true
 
     await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: prompt })
 
@@ -179,11 +178,11 @@ export class Assistant {
           role: response.role,
           content: `${preambles.length ? `${preambles.join('\n')}\n` : ``}${outputMessage.content}`,
         })
-        this.isBussy = false
-        return ResponsesUtils.parseResponse(outputMessage.content, true)
+        this.isBusy = false
+        return outputMessage.content
       }
     }
-    this.isBussy = false
+    this.isBusy = false
     throw new Error(`Too many attempts to get a valid response`)
   }
 
@@ -205,8 +204,8 @@ export class Assistant {
    * @brief Checks if the assistant is currently busy processing a request.
    * @returns A boolean indicating whether the assistant is busy.
    */
-  public get bussy() {
-    return this.isBussy
+  public get busy() {
+    return this.isBusy
   }
 
   /**
@@ -221,7 +220,7 @@ export class Assistant {
    * Clear the thread
    */
   public clear() {
-    this.isBussy = false
+    this.isBusy = false
     this.aiProvider.removeThread(this.threadId)
   }
 
@@ -251,7 +250,7 @@ export class Assistant {
    * Internal implementation
    *
    ***************************************/
-  protected isBussy: boolean = false
+  protected isBusy: boolean = false
   protected threadId: string = null
   protected creatingThread: boolean = false
 
