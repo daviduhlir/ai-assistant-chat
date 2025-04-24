@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
 import { Assistant } from '../components/Assistant'
-import { OpenAIChatProvider, OpenAIChatProviderOptions, OpenAIChatProviderOptionsDefault } from './OpenAIChatProvider'
+import { OpenAIChatProvider, OpenAIChatProviderOptions, OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS } from './OpenAIChatProvider'
 
 /**
  * @class OpenAIAssistant
@@ -40,10 +40,10 @@ export class OpenAIAssistant extends Assistant {
   constructor(
     openAI: OpenAI,
     systemInstructions: string,
-    readonly options: Partial<OpenAIChatProviderOptions> = OpenAIChatProviderOptionsDefault,
+    readonly options: Partial<OpenAIChatProviderOptions> = OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS,
     initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
   ) {
-    super(new OpenAIChatProvider(openAI, { ...OpenAIChatProviderOptionsDefault, ...options }, initialMessages), systemInstructions)
+    super(new OpenAIChatProvider(openAI, { ...OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages), systemInstructions)
   }
 
   /**

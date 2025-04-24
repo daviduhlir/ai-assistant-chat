@@ -8,13 +8,15 @@ export interface OpenAIChatProviderOptions {
   temperature: number
   summarizeAfter?: number
   summarizeKeepLastMessages?: number
+  maxTokens?: number
 }
 
-export const OpenAIChatProviderOptionsDefault: OpenAIChatProviderOptions = {
+export const OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS: OpenAIChatProviderOptions = {
   model: 'gpt-4o-mini',
   temperature: 0.2,
   summarizeAfter: 10,
   summarizeKeepLastMessages: 2,
+  maxTokens: 1000,
 }
 
 /**
@@ -33,12 +35,13 @@ export const OpenAIChatProviderOptionsDefault: OpenAIChatProviderOptions = {
 export class OpenAIChatProvider extends AIProvider {
   constructor(
     protected openAI: OpenAI,
-    protected options: OpenAIChatProviderOptions = OpenAIChatProviderOptionsDefault,
+    protected options: OpenAIChatProviderOptions = OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS,
     readonly initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
   ) {
     super()
   }
 
+  protected usage: number = 0
   protected tools: AIProviderFunction[] = []
   protected threads: Map<
     string,
@@ -128,17 +131,17 @@ export class OpenAIChatProvider extends AIProvider {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
     const result = await this.runCompletion([{ role: 'system', content: thread.instructions }, ...thread.messages], this.tools)
-    if (!(result as any).timestamp) {
-      ;(result as any).timestamp = Date.now()
+    if (!(result as any).message?.timestamp) {
+      ;(result as any).message.timestamp = Date.now()
     }
-    thread.messages.push(result)
-    thread.history.push(result)
+    thread.messages.push(result.message)
+    thread.history.push(result.message)
 
-    if (result?.tool_calls) {
+    if (result?.message?.tool_calls) {
       this.toolInProgress = true
       return {
-        ...result,
-        functionCall: result.tool_calls.map((tool_call: any) => {
+        ...result.message,
+        functionCall: result.message.tool_calls.map((tool_call: any) => {
           const argsParsed = JSON.parse(tool_call.function.arguments)
           return {
             id: tool_call.id,
@@ -152,7 +155,7 @@ export class OpenAIChatProvider extends AIProvider {
       }
     }
     this.toolInProgress = false
-    return result
+    return result.message
   }
 
   /**
@@ -225,6 +228,13 @@ export class OpenAIChatProvider extends AIProvider {
   }
 
   /**
+   * Gets overall usage of completions in tokens
+   */
+  public getUsage(): number {
+    return this.usage
+  }
+
+  /**
    *
    * Internal methods
    *
@@ -239,7 +249,7 @@ export class OpenAIChatProvider extends AIProvider {
   protected async runCompletion(
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
     tools: AIProviderFunction[] = [],
-  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessage> {
+  ): Promise<{ message: OpenAI.Chat.Completions.ChatCompletionMessage; usage: number; }> {
     const preapredTools = tools.map(tool => ({
       type: 'function',
       function: {
@@ -265,9 +275,14 @@ export class OpenAIChatProvider extends AIProvider {
       temperature: this.options.temperature,
       messages,
       tools: preapredTools as any,
+      max_tokens: this.options.maxTokens,
     })
 
-    return response.choices[0].message
+    this.usage += response.usage.total_tokens
+    return {
+      message: response.choices[0].message,
+      usage: response.usage.total_tokens,
+    }
   }
 
   /**
@@ -289,8 +304,8 @@ export class OpenAIChatProvider extends AIProvider {
       },
       ...thread.messages,
     ])
-    if (summaryResult?.content) {
-      thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.content}` }]
+    if (summaryResult?.message?.content) {
+      thread.messages = [{ role: 'system', content: `Summary of the previous conversation: ${summaryResult.message.content}` }]
       this.threads.set(threadId, thread)
     }
   }
