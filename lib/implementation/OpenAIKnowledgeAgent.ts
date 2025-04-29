@@ -55,10 +55,10 @@ export class OpenAIKnowledgeAgent extends KnowledgeAgent {
   protected creatingThread: boolean = false
 
   /**
-    * Creates a new thread with an optional initial set of messages.
-    * @param messages Initial messages for the thread.
-    * @returns The ID of the newly created thread.
-    */
+   * Creates a new thread with an optional initial set of messages.
+   * @param messages Initial messages for the thread.
+   * @returns The ID of the newly created thread.
+   */
   protected async createThread(instructions?: string) {
     try {
       const response = await this.openAI.beta.threads.create()
@@ -100,7 +100,7 @@ export class OpenAIKnowledgeAgent extends KnowledgeAgent {
    */
   protected async runAssistant() {
     const run = await this.openAI.beta.threads.runs.create(this.threadId, {
-      assistant_id: this.options.assistantId
+      assistant_id: this.options.assistantId,
     })
     return {
       id: run.id,
@@ -109,11 +109,11 @@ export class OpenAIKnowledgeAgent extends KnowledgeAgent {
   }
 
   /**
-    * Get the result of a run.
-    * @param threadId
-    * @param runId
-    * @returns
-    */
+   * Get the result of a run.
+   * @param threadId
+   * @param runId
+   * @returns
+   */
   protected async getRunResult(runId: string): Promise<OpenAI.Beta.Threads.Messages.Message[]> {
     let itteration = 0
     const delay = 500 // Začínáme s 500ms

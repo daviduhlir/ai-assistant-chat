@@ -44,9 +44,13 @@ export class OpenAIAssistant extends Assistant {
     systemInstructions: string,
     readonly options: Partial<OpenAIChatProviderOptions> = OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS,
     initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
-    knowledgeAgent?: KnowledgeAgent
+    knowledgeAgent?: KnowledgeAgent,
   ) {
-    super(new OpenAIChatProvider(openAI, { ...OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages), systemInstructions, knowledgeAgent)
+    super(
+      new OpenAIChatProvider(openAI, { ...OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages),
+      systemInstructions,
+      knowledgeAgent,
+    )
   }
 
   /**
