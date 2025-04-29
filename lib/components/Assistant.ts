@@ -31,7 +31,7 @@
  */
 import 'reflect-metadata'
 import { AIProvider, AIProviderFunction } from './AIProvider'
-import { ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
+import { CallFunctionParameter, ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 import { FunctionUtils } from '../utils/functions'
 
 // callbale descriptor
@@ -69,7 +69,7 @@ export class Assistant {
    * @brief Decorator to register a method in the `callables` object.
    * @param description A description of the method being registered.
    */
-  public static Callable(description: string, signature?: string) {
+  public static Callable(description: string, parameters?: CallFunctionParameter[]) {
     return function <T extends { [key: string]: any }>(
       target: T,
       memberName: keyof T,
@@ -83,13 +83,13 @@ export class Assistant {
       let callables = Reflect.getMetadata(isCallableKey, target) || {}
       callables[memberName] = {
         reference: descriptor.value,
-        signature: signature ? signature : functionMetadata.signature,
+        signature: functionMetadata.signature,
         description,
         paramsMap: functionMetadata.parameters.map(param => param.name),
         tool: {
           name: functionMetadata.name,
           description,
-          parameters: functionMetadata.parameters,
+          parameters: parameters ? parameters : functionMetadata.parameters,
         } as AIProviderFunction,
       }
       Reflect.defineMetadata(isCallableKey, callables, target)

@@ -1,4 +1,5 @@
 import 'reflect-metadata'
+import { CallFunctionParameter } from '../interfaces';
 
 export class FunctionUtils {
   /**
@@ -48,7 +49,7 @@ export class FunctionUtils {
   public static extractMethodMetadata(
     target: any,
     memberName: string,
-  ): { signature: string; returnType: string; name: string; parameters: { name: string; type: string; default?: string }[] } {
+  ): { signature: string; returnType: string; name: string; parameters: CallFunctionParameter[] } {
     const method = target[memberName]
     if (typeof method !== 'function') {
       throw new Error(`Method ${memberName} is not a function`)
@@ -69,7 +70,7 @@ export class FunctionUtils {
     if (paramTypes.some(type => allowedTypes.indexOf(type.name) === -1)) {
       throw new Error(`Allowed type are ${allowedTypes.join(', ')} only in parameter types`)
     }
-    const parameters: { name: string; type: string; default?: string }[] = paramList
+    const parameters: CallFunctionParameter[] = paramList
       .split(',')
       .map(param =>
         param

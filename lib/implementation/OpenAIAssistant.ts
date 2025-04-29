@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { Assistant } from '../components/Assistant'
 import { OpenAIChatProvider, OpenAIChatProviderOptions, OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS } from './OpenAIChatProvider'
+import { CallFunctionParameter } from '../interfaces'
 
 /**
  * @class OpenAIAssistant
@@ -20,13 +21,13 @@ export class OpenAIAssistant extends Assistant {
    * @brief Decorator to register a method in the `callables` object.
    * @param description A description of the method being registered.
    */
-  public static Callable(description: string, signature?: string) {
+  public static Callable(description: string, parameters?: CallFunctionParameter[]) {
     return function <T extends { [key: string]: any }>(
       target: T,
       memberName: keyof T,
       descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<string>>,
     ) {
-      Assistant.Callable(description, signature)(target, memberName, descriptor)
+      Assistant.Callable(description, parameters)(target, memberName, descriptor)
     }
   }
 

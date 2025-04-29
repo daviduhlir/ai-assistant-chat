@@ -1,14 +1,10 @@
-import { ChatInputMessage, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
+import { CallFunctionParameter, ChatInputMessage, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 
 export type ChatExecutionResult = ChatOutputMessage | ChatOutputToolCallMessage
 export interface AIProviderFunction {
   name: string
   description: string
-  parameters: {
-    name: string
-    default: string
-    type: string
-  }[]
+  parameters: CallFunctionParameter[]
 }
 
 /**

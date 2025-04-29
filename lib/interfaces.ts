@@ -35,3 +35,9 @@ export interface ChatOutputToolCallMessage extends ChatMessageBase {
 export interface ChatInputMessage extends ChatMessageBase {
   content: ChatMessageInputContent
 }
+
+export interface CallFunctionParameter {
+  name: string
+  type: string
+  default?: string
+}
