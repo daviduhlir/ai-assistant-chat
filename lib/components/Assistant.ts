@@ -33,13 +33,13 @@ import 'reflect-metadata'
 import { AIProvider, AIProviderFunction } from './AIProvider'
 import { CallFunctionParameter, ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 import { FunctionUtils } from '../utils/functions'
+import { KnowledgeAgent } from './KnowledgeAgent'
 
 // callbale descriptor
 const isCallableKey = Symbol('isCallable')
 
 export type ChatCallable = {
   reference: (...params: any[]) => Promise<any>
-  signature: string
   description: string
   tool: AIProviderFunction
   paramsMap: string[]
@@ -83,7 +83,6 @@ export class Assistant {
       let callables = Reflect.getMetadata(isCallableKey, target) || {}
       callables[memberName] = {
         reference: descriptor.value,
-        signature: functionMetadata.signature,
         description,
         paramsMap: functionMetadata.parameters.map(param => param.name),
         tool: {
@@ -102,8 +101,11 @@ export class Assistant {
    * @param systemInstructions Instructions describing the assistant's role.
    * @param messages A history of chat messages.
    */
-  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string) {
+  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, readonly knowledgeAgent?: KnowledgeAgent) {
     this.initialize()
+    if (this.knowledgeAgent) {
+      this.createAgentCallables()
+    }
   }
 
   /**
@@ -113,6 +115,9 @@ export class Assistant {
    */
   public async initialize() {
     if (!this.creatingThread) {
+      if (this.knowledgeAgent) {
+        await this.knowledgeAgent.initialize()
+      }
       this.creatingThread = true
       const threadId = await this.aiProvider.createThread(
         this.BASE_PROMPT(this.callables, this.systemInstructions),
@@ -194,7 +199,6 @@ export class Assistant {
     return Object.keys(this.callables).map(key => {
       return {
         key,
-        signature: this.callables[key].signature,
         description: this.callables[key].description,
       }
     })
@@ -253,6 +257,9 @@ export class Assistant {
   protected isBusy: boolean = false
   protected threadId: string = null
   protected creatingThread: boolean = false
+  protected knowledgeAgentCallable: {
+    [name: string]: ChatCallable
+  } = null
 
   /**
    * Get all handlers
@@ -260,7 +267,39 @@ export class Assistant {
   private get callables(): {
     [name: string]: ChatCallable
   } {
-    return { ...(Reflect.getMetadata(isCallableKey, this) || {}) }
+    return {
+      ...(Reflect.getMetadata(isCallableKey, this) || {}),
+      ...(this.knowledgeAgentCallable || {}),
+    }
+  }
+
+  /**
+   * Create agent callables
+   */
+  private createAgentCallables() {
+    this.knowledgeAgentCallable = {
+      askKnowledgeAgent: {
+        reference: async (prompt: string) => {
+          if (this.knowledgeAgent) {
+            return this.knowledgeAgent.prompt(prompt)
+          } else {
+            throw new Error('Knowledge agent is not set')
+          }
+        },
+        description: 'Ask knowledge agent, use this function if you will need to know anything from knowledge base.',
+        paramsMap: ['prompt'],
+        tool: {
+          name: 'askKnowledgeAgent',
+          description: 'Ask knowledge agent',
+          parameters: [
+            {
+              name: 'prompt',
+              type: 'string',
+            },
+          ],
+        },
+      },
+    }
   }
 
   /**

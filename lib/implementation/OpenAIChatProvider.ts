@@ -25,12 +25,12 @@ export const OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS: OpenAIChatProviderOptions = {
  *
  * The `OpenAiProvider` class integrates with OpenAI's API to handle chat interactions.
  * It extends the `AIProvider` abstract class and provides a concrete implementation
- * of the `executeChat` method.
+ * of the `executeThread` method.
  *
  * @details
  * - This class uses OpenAI's `chat.completions.create` API to send messages and retrieve responses.
  * - It supports configurable options such as the model and temperature.
- * - The `executeChat` method processes the conversation history and returns the AI's response along with token usage.
+ * - The `executeThread` method processes the conversation history and returns the AI's response along with token usage.
  */
 export class OpenAIChatProvider extends AIProvider {
   constructor(
@@ -249,7 +249,7 @@ export class OpenAIChatProvider extends AIProvider {
   protected async runCompletion(
     messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
     tools: AIProviderFunction[] = [],
-  ): Promise<{ message: OpenAI.Chat.Completions.ChatCompletionMessage; usage: number; }> {
+  ): Promise<{ message: OpenAI.Chat.Completions.ChatCompletionMessage; usage: number }> {
     const preapredTools = tools.map(tool => ({
       type: 'function',
       function: {

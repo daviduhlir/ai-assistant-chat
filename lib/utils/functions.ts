@@ -1,5 +1,5 @@
 import 'reflect-metadata'
-import { CallFunctionParameter } from '../interfaces';
+import { CallFunctionParameter } from '../interfaces'
 
 export class FunctionUtils {
   /**

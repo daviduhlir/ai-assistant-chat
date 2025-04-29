@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { Assistant } from '../components/Assistant'
 import { OpenAIChatProvider, OpenAIChatProviderOptions, OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS } from './OpenAIChatProvider'
 import { CallFunctionParameter } from '../interfaces'
+import { KnowledgeAgent } from '../components/KnowledgeAgent'
 
 /**
  * @class OpenAIAssistant
@@ -43,8 +44,9 @@ export class OpenAIAssistant extends Assistant {
     systemInstructions: string,
     readonly options: Partial<OpenAIChatProviderOptions> = OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS,
     initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
+    knowledgeAgent?: KnowledgeAgent
   ) {
-    super(new OpenAIChatProvider(openAI, { ...OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages), systemInstructions)
+    super(new OpenAIChatProvider(openAI, { ...OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages), systemInstructions, knowledgeAgent)
   }
 
   /**
