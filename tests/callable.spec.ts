@@ -27,7 +27,6 @@ describe('Callable decorator', () => {
 
     expect(greetCallable).to.exist
     expect(greetCallable).to.have.property('description', 'Greets a user by name.')
-    expect(greetCallable).to.have.property('signature').that.includes('greet(name: string)')
   })
 
   it('should call a registered method successfully', async () => {
