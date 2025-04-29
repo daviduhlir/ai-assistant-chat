@@ -1,6 +1,6 @@
 # Assistant
 
-The `Assistant` class provides a framework for managing interactions with AI chat APIs. It supports dynamic method registration, structured prompts, and execution of system-level actions based on assistant responses. This class is designed to facilitate seamless communication with AI models while allowing for extensibility through custom callable methods.
+The `Assistant` class provides a framework for managing interactions with AI chat APIs. It supports dynamic method registration, structured prompts, and execution of system-level actions based on assistant responses. This class is designed to facilitate seamless communication with AI models while allowing for extensibility through custom callable methods and integration with a `KnowledgeAgent`.
 
 ---
 
@@ -9,6 +9,7 @@ The `Assistant` class provides a framework for managing interactions with AI cha
 - **Dynamic Method Registration**: Use the `@Assistant.Callable` decorator to register methods that the assistant can invoke dynamically.
 - **Structured Prompts**: Automatically generates prompts that guide the assistant's behavior and provide a list of callable methods.
 - **AI Provider Abstraction**: Integrates with different AI providers through the `AIProvider` interface, allowing flexibility and extensibility.
+- **KnowledgeAgent Integration**: Allows the assistant to query a knowledge base for additional information or context.
 - **Assistant Response Parsing**: Parses responses from the assistant to determine whether to respond to the user or execute a system-level action.
 - **Extensibility**: Allows developers to define custom methods that the assistant can call during interactions.
 
@@ -21,9 +22,15 @@ The `Assistant` class provides a framework for managing interactions with AI cha
 ```typescript
 import OpenAI from 'openai';
 import { OpenAIAssistant } from './OpenAIAssistant';
+import { KnowledgeAgent } from './KnowledgeAgent';
 
 // Create an instance of OpenAI client
 const openAI = new OpenAI({ apiKey: 'your-api-key' });
+
+// Create an instance of KnowledgeAgent
+const knowledgeAgent = new OpenAIKnowledgeAgent({
+  assistantId: 'your assistant id'
+});
 
 // Register a callable method
 class MyAssistant extends OpenAIAssistant {
@@ -33,8 +40,8 @@ class MyAssistant extends OpenAIAssistant {
   }
 }
 
-// Create an instance of Assistant
-const assistant = new MyAssistant(openAI, 'You are a helpful assistant.');
+// Create an instance of Assistant with KnowledgeAgent
+const assistant = new MyAssistant(openAI, 'You are a helpful assistant.', {}, [], knowledgeAgent);
 
 // Send a prompt
 const response = await assistant.prompt('What is my user ID?', 5);
@@ -54,15 +61,52 @@ The `Assistant` class provides the core framework for managing interactions with
 ```typescript
 constructor(
   aiProvider: AIProvider,
-  systemInstructions: string
+  systemInstructions: string,
+  knowledgeAgent?: KnowledgeAgent
 )
 ```
 
 - **Parameters**:
   - `aiProvider`: An instance of a class implementing the `AIProvider` interface.
   - `systemInstructions`: A string describing the assistant's role and behavior.
+  - `knowledgeAgent`: (Optional) An instance of `KnowledgeAgent` for querying a knowledge base.
 
 - **Description**: Initializes a new instance of the `Assistant` class.
+
+---
+
+### `KnowledgeAgent`
+
+The `KnowledgeAgent` class provides an interface for querying a knowledge base. It can be used to enhance the assistant's capabilities by providing additional context or information.
+
+#### `constructor`
+
+```typescript
+constructor(options: { endpoint: string; apiKey: string });
+```
+
+- **Parameters**:
+  - `endpoint`: The URL of the knowledge base API.
+  - `apiKey`: The API key for authenticating with the knowledge base.
+
+#### `initialize`
+
+```typescript
+async initialize(): Promise<void>;
+```
+
+- **Description**: Initializes the `KnowledgeAgent` by establishing a connection to the knowledge base.
+
+#### `prompt`
+
+```typescript
+async prompt(query: string): Promise<string>;
+```
+
+- **Parameters**:
+  - `query`: The query string to send to the knowledge base.
+
+- **Returns**: A promise that resolves to the response from the knowledge base.
 
 ---
 
@@ -124,7 +168,9 @@ The `OpenAIAssistant` class is a specialized implementation of the `Assistant` c
 constructor(
   openAI: OpenAI,
   systemInstructions: string,
-  options?: Partial<OpenAIChatProviderOptions>
+  options?: Partial<OpenAIChatProviderOptions>,
+  initialMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  knowledgeAgent?: KnowledgeAgent
 )
 ```
 
@@ -132,6 +178,8 @@ constructor(
   - `openAI`: An instance of the OpenAI client.
   - `systemInstructions`: A string describing the assistant's role and behavior.
   - `options`: (Optional) Configuration options for the OpenAI provider, such as the model and temperature.
+  - `initialMessages`: (Optional) A history of initial chat messages.
+  - `knowledgeAgent`: (Optional) An instance of `KnowledgeAgent` for querying a knowledge base.
 
 ---
 
@@ -161,41 +209,14 @@ console.log(response);
 
 ---
 
-## Types
-
-### `ChatMessage`
-
-```typescript
-export interface ChatMessage {
-  role: string;
-  content: string | { type: string; text: { value: string } }[];
-}
-```
-
-- **Description**: Represents a single message in the chat or thread history, including the role (`user` or `assistant`) and the message content.
-
----
-
-### `ChatExecutionResult`
-
-```typescript
-export interface ChatExecutionResult extends ChatMessage {
-  usage: number;
-}
-```
-
-- **Description**: Represents the result of a chat or thread execution, including the assistant's response and token usage.
-
----
-
 ## How It Works
 
-1. **Initialization**: Create an instance of `Assistant` or `OpenAIAssistant` with an AI provider and system instructions.
+1. **Initialization**: Create an instance of `Assistant` or `OpenAIAssistant` with an AI provider, system instructions, and optionally a `KnowledgeAgent`.
 2. **Register Methods**: Use the `@Assistant.Callable` decorator to register methods that the assistant can invoke.
 3. **Send Prompts**: Use the `prompt` method to send user input to the assistant and process its response.
-4. **AI Provider Integration**:
-   - The `AIProvider` interface allows integration with different AI providers.
-   - The `OpenAIChatProvider` is a specific implementation for OpenAI.
+4. **KnowledgeAgent Integration**:
+   - The `KnowledgeAgent` can be used to query a knowledge base for additional context or information.
+   - Methods like `prompt` allow the assistant to retrieve relevant data from the knowledge base.
 
 ---
 
