@@ -116,7 +116,7 @@ export class OpenAIKnowledgeAgent extends KnowledgeAgent {
    */
   protected async getRunResult(runId: string): Promise<OpenAI.Beta.Threads.Messages.Message[]> {
     let itteration = 0
-    const delay = 500 // Začínáme s 500ms
+    const delay = 500 // 500ms
     while (true) {
       if (++itteration > 100) {
         console.log('Max itterations when waiting result reached')
@@ -139,7 +139,6 @@ export class OpenAIKnowledgeAgent extends KnowledgeAgent {
    */
   protected async getLastAssistantMessage(runId: string): Promise<string> {
     const messages = await this.getRunResult(runId)
-    //console.log(messages)
     const lastAssistantMessage = messages.find(msg => msg.role === 'assistant')
     if (!lastAssistantMessage) {
       throw new Error('No assistant message found in the thread.')
