@@ -38,6 +38,10 @@ import { KnowledgeAgent } from './KnowledgeAgent'
 // callbale descriptor
 const isCallableKey = Symbol('isCallable')
 
+const threadIdSymbol = Symbol('threadId')
+const creatingThreadSymbol = Symbol('creatingThread')
+const isBusySymbol = Symbol('isBusy')
+
 export type ChatCallable = {
   reference: (...params: any[]) => Promise<any>
   description: string
@@ -114,17 +118,17 @@ export class Assistant {
    * @returns
    */
   public async initialize() {
-    if (!this.creatingThread) {
+    if (!this[creatingThreadSymbol]) {
       if (this.knowledgeAgent) {
         await this.knowledgeAgent.initialize()
       }
-      this.creatingThread = true
+      this[creatingThreadSymbol] = true
       const threadId = await this.aiProvider.createThread(
         this.BASE_PROMPT(this.callables, this.systemInstructions),
         Object.keys(this.callables).map(key => this.callables[key].tool),
       )
-      this.threadId = threadId
-      return this.threadId
+      this[threadIdSymbol] = threadId
+      return this[threadIdSymbol]
     } else {
       return this.awaitThreadId()
     }
@@ -146,12 +150,12 @@ export class Assistant {
    * @throws An error if the maximum number of iterations is exceeded.
    */
   public async prompt(prompt: ChatMessageInputContent, limit: number = 10): Promise<string> {
-    if (this.isBusy) {
+    if (this[isBusySymbol]) {
       throw new Error(`Assistant is busy`)
     }
 
     const threadId = await this.awaitThreadId()
-    this.isBusy = true
+    this[isBusySymbol] = true
 
     await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: prompt })
 
@@ -183,11 +187,11 @@ export class Assistant {
           role: response.role,
           content: `${preambles.length ? `${preambles.join('\n')}\n` : ``}${outputMessage.content}`,
         })
-        this.isBusy = false
+        this[isBusySymbol] = false
         return outputMessage.content
       }
     }
-    this.isBusy = false
+    this[isBusySymbol] = false
     throw new Error(`Too many attempts to get a valid response`)
   }
 
@@ -209,7 +213,7 @@ export class Assistant {
    * @returns A boolean indicating whether the assistant is busy.
    */
   public get busy() {
-    return this.isBusy
+    return this[isBusySymbol]
   }
 
   /**
@@ -217,15 +221,15 @@ export class Assistant {
    * @returns
    */
   public getThreadId() {
-    return this.threadId
+    return this[threadIdSymbol]
   }
 
   /**
    * Clear the thread
    */
   public clear() {
-    this.isBusy = false
-    this.aiProvider.removeThread(this.threadId)
+    this[isBusySymbol] = false
+    this.aiProvider.removeThread(this[threadIdSymbol])
   }
 
   /***************************************
@@ -254,9 +258,9 @@ export class Assistant {
    * Internal implementation
    *
    ***************************************/
-  protected isBusy: boolean = false
-  protected threadId: string = null
-  protected creatingThread: boolean = false
+  protected [isBusySymbol]: boolean = false
+  protected [threadIdSymbol]: string = null
+  protected [creatingThreadSymbol]: boolean = false
   protected knowledgeAgentCallable: {
     [name: string]: ChatCallable
   } = null
@@ -307,14 +311,14 @@ export class Assistant {
    * @returns
    */
   private async awaitThreadId(): Promise<string> {
-    if (this.threadId) {
-      return this.threadId
+    if (this[threadIdSymbol]) {
+      return this[threadIdSymbol]
     }
     return new Promise(resolve => {
       const interval = setInterval(() => {
-        if (this.threadId) {
+        if (this[threadIdSymbol]) {
           clearInterval(interval)
-          resolve(this.threadId)
+          resolve(this[threadIdSymbol])
         }
       }, 10)
     })
