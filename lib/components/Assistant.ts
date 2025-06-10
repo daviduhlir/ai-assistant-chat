@@ -196,7 +196,7 @@ export class Assistant {
     }
     this[isBusySymbol] = false
     if (notRespondedTools && notRespondedTools.length > 0) {
-      for(const toolId of notRespondedTools) {
+      for (const toolId of notRespondedTools) {
         await this.aiProvider.addMessageToThread(threadId, {
           role: 'tool',
           functionCallId: toolId,
