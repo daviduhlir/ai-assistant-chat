@@ -30,7 +30,7 @@
  * console.log(response);
  */
 import 'reflect-metadata'
-import { AIProvider, AIProviderFunction } from './AIProvider'
+import { AIProvider, AIProviderFunction, ChatExecutionResult } from './AIProvider'
 import { CallFunctionParameter, ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
 import { FunctionUtils } from '../utils/functions'
 import { KnowledgeAgent } from './KnowledgeAgent'
@@ -164,7 +164,13 @@ export class Assistant {
     let notRespondedTools: string[] = null
     while (itterations < limit) {
       itterations++
-      const response = await this.aiProvider.executeThread(threadId)
+      let response: ChatExecutionResult
+      try {
+        response = await this.aiProvider.executeThread(threadId)
+      } catch(error) {
+        this[isBusySymbol] = false
+        throw error
+      }
 
       if ((response as ChatOutputToolCallMessage).functionCall) {
         const outputToolCall = response as ChatOutputToolCallMessage
