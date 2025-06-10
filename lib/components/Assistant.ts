@@ -161,17 +161,20 @@ export class Assistant {
 
     let itterations = 0
     const preambles = []
+    let notRespondedTools: string[] = null
     while (itterations < limit) {
       itterations++
       const response = await this.aiProvider.executeThread(threadId)
 
       if ((response as ChatOutputToolCallMessage).functionCall) {
         const outputToolCall = response as ChatOutputToolCallMessage
+        notRespondedTools = outputToolCall.functionCall.map(toolCall => toolCall.id)
         // execute method!
         for (const toolCall of outputToolCall.functionCall) {
           try {
             const result = await this.action(toolCall.name, toolCall.arguments)
             await this.aiProvider.addMessageToThread(threadId, { role: 'tool', functionCallId: toolCall.id, content: `${result}` })
+            notRespondedTools = notRespondedTools.filter(id => id !== toolCall.id)
           } catch (actionError) {
             await this.aiProvider.addMessageToThread(threadId, {
               role: 'tool',
@@ -192,6 +195,17 @@ export class Assistant {
       }
     }
     this[isBusySymbol] = false
+    if (notRespondedTools && notRespondedTools.length > 0) {
+      for(const toolId of notRespondedTools) {
+        await this.aiProvider.addMessageToThread(threadId, {
+          role: 'tool',
+          functionCallId: toolId,
+          content: `ERROR\nThere was some error when calling action. Not all tools were responded.`,
+        })
+      }
+      await this.aiProvider.executeThread(threadId)
+      throw new Error(`Not all tools were responded: ${notRespondedTools.join(', ')}, will finsh them with error.`)
+    }
     throw new Error(`Too many attempts to get a valid response`)
   }
 
