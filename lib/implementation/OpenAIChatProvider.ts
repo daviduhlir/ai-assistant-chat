@@ -142,7 +142,13 @@ export class OpenAIChatProvider extends AIProvider {
       return {
         ...result.message,
         functionCall: result.message.tool_calls.map((tool_call: any) => {
-          const argsParsed = JSON.parse(tool_call.function.arguments)
+          let argsParsed: string
+          try {
+            argsParsed = JSON.parse(tool_call.function.arguments)
+          } catch(e) {
+            console.log(`Parsing function ${tool_call.function.name} call failed, argumens: ${tool_call.function.arguments}`)
+            throw e
+				  }
           return {
             id: tool_call.id,
             name: tool_call.function.name,

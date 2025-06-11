@@ -185,8 +185,9 @@ export class Assistant {
             await this.aiProvider.addMessageToThread(threadId, {
               role: 'tool',
               functionCallId: toolCall.id,
-              content: `ERROR\nThere was some error when calling action. ${actionError.message}`,
+              content: `ERROR: ${actionError.message}`,
             })
+            notRespondedTools = notRespondedTools.filter(id => id !== toolCall.id)
           }
         }
       } else if ((response as ChatOutputMessage)?.content) {
@@ -206,7 +207,7 @@ export class Assistant {
         await this.aiProvider.addMessageToThread(threadId, {
           role: 'tool',
           functionCallId: toolId,
-          content: `ERROR\nThere was some error when calling action. Not all tools were responded.`,
+          content: `ERROR: There was some error when calling action. Not all tools were responded.`,
         })
       }
       await this.aiProvider.executeThread(threadId)
