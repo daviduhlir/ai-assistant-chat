@@ -167,7 +167,7 @@ export class Assistant {
       let response: ChatExecutionResult
       try {
         response = await this.aiProvider.executeThread(threadId)
-      } catch(error) {
+      } catch (error) {
         this[isBusySymbol] = false
         throw error
       }

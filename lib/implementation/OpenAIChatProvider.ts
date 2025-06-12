@@ -145,10 +145,10 @@ export class OpenAIChatProvider extends AIProvider {
           let argsParsed: string
           try {
             argsParsed = JSON.parse(tool_call.function.arguments)
-          } catch(e) {
+          } catch (e) {
             console.log(`Parsing function ${tool_call.function.name} call failed, argumens: ${tool_call.function.arguments}`)
             throw e
-				  }
+          }
           return {
             id: tool_call.id,
             name: tool_call.function.name,
