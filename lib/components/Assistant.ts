@@ -88,7 +88,7 @@ export class Assistant {
       callables[memberName] = {
         reference: descriptor.value,
         description,
-        paramsMap: functionMetadata.parameters.map(param => param.name),
+        paramsMap: (parameters ? parameters : functionMetadata.parameters).map(param => param.name),
         tool: {
           name: functionMetadata.name,
           description,
