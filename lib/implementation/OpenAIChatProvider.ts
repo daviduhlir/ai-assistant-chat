@@ -146,7 +146,15 @@ export class OpenAIChatProvider extends AIProvider {
           try {
             argsParsed = JSON.parse(tool_call.function.arguments)
           } catch (e) {
+            this.toolInProgress = false
             console.log(`Parsing function ${tool_call.function.name} call failed, argumens: ${tool_call.function.arguments}`)
+            const errorMessage = OpenAIChatProvider.transformInputMessage({
+              role: 'tool',
+              functionCallId: tool_call.id,
+              content: `ERROR: Parsing function ${tool_call.function.name} call failed, JSON was invalid, message was too long or some other error occurred. Please try again.`,
+            })
+            thread.messages.push(errorMessage)
+            thread.history.push(errorMessage)
             throw e
           }
           return {
