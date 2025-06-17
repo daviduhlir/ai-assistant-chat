@@ -166,7 +166,7 @@ export class Assistant {
 
     let itterations = 0
     const preambles = []
-    let notRespondedTools: {id: string; name: string}[] = null
+    let notRespondedTools: { id: string; name: string }[] = null
     while (itterations < limit) {
       itterations++
       let response: ChatExecutionResult
@@ -179,7 +179,7 @@ export class Assistant {
 
       if ((response as ChatOutputToolCallMessage).functionCall) {
         const outputToolCall = response as ChatOutputToolCallMessage
-        notRespondedTools = outputToolCall.functionCall.map(toolCall => ({id: toolCall.id, name: toolCall.name}))
+        notRespondedTools = outputToolCall.functionCall.map(toolCall => ({ id: toolCall.id, name: toolCall.name }))
         // execute method!
         for (const toolCall of outputToolCall.functionCall) {
           if (this.options.debugTools) {
