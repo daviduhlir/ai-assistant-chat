@@ -2,7 +2,6 @@ import OpenAI from 'openai'
 import { Assistant, AssistantOptions } from '../components/Assistant'
 import { OpenAIChatProvider, OpenAIChatProviderOptions, OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS } from './OpenAIChatProvider'
 import { CallFunctionParameter } from '../interfaces'
-import { KnowledgeAgent } from '../components/KnowledgeAgent'
 
 /**
  * @class OpenAIAssistant
