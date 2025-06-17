@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { Assistant } from '../components/Assistant'
+import { Assistant, AssistantOptions } from '../components/Assistant'
 import { OpenAIChatProvider, OpenAIChatProviderOptions, OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS } from './OpenAIChatProvider'
 import { CallFunctionParameter } from '../interfaces'
 import { KnowledgeAgent } from '../components/KnowledgeAgent'
@@ -17,6 +17,9 @@ import { KnowledgeAgent } from '../components/KnowledgeAgent'
  * - It uses the `OpenAIProvider` to handle communication with OpenAI's chat API.
  * - Developers can use this class to create an assistant with predefined system instructions and message history.
  */
+
+export interface OpenAIAssistantOptions extends AssistantOptions, OpenAIChatProviderOptions {}
+
 export class OpenAIAssistant extends Assistant {
   /**
    * @brief Decorator to register a method in the `callables` object.
@@ -42,15 +45,10 @@ export class OpenAIAssistant extends Assistant {
   constructor(
     openAI: OpenAI,
     systemInstructions: string,
-    readonly options: Partial<OpenAIChatProviderOptions> = OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS,
+    options: Partial<OpenAIAssistantOptions> = OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS,
     initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
-    knowledgeAgent?: KnowledgeAgent,
   ) {
-    super(
-      new OpenAIChatProvider(openAI, { ...OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages),
-      systemInstructions,
-      knowledgeAgent,
-    )
+    super(new OpenAIChatProvider(openAI, { ...OPENAI_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages), systemInstructions, options)
   }
 
   /**

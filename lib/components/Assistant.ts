@@ -49,6 +49,11 @@ export type ChatCallable = {
   paramsMap: string[]
 }
 
+export interface AssistantOptions {
+  knowledgeAgent?: KnowledgeAgent
+  debugTools?: boolean
+}
+
 /**
  * Chat class
  * @description This class is used to interact with OpenAI's chat API.
@@ -105,9 +110,9 @@ export class Assistant {
    * @param systemInstructions Instructions describing the assistant's role.
    * @param messages A history of chat messages.
    */
-  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, readonly knowledgeAgent?: KnowledgeAgent) {
+  constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, readonly options: AssistantOptions = {}) {
     this.initialize()
-    if (this.knowledgeAgent) {
+    if (this.options.knowledgeAgent) {
       this.createAgentCallables()
     }
   }
@@ -119,8 +124,8 @@ export class Assistant {
    */
   public async initialize() {
     if (!this[creatingThreadSymbol]) {
-      if (this.knowledgeAgent) {
-        await this.knowledgeAgent.initialize()
+      if (this.options.knowledgeAgent) {
+        await this.options.knowledgeAgent.initialize()
       }
       this[creatingThreadSymbol] = true
       const threadId = await this.aiProvider.createThread(
@@ -161,7 +166,7 @@ export class Assistant {
 
     let itterations = 0
     const preambles = []
-    let notRespondedTools: string[] = null
+    let notRespondedTools: {id: string; name: string}[] = null
     while (itterations < limit) {
       itterations++
       let response: ChatExecutionResult
@@ -174,20 +179,29 @@ export class Assistant {
 
       if ((response as ChatOutputToolCallMessage).functionCall) {
         const outputToolCall = response as ChatOutputToolCallMessage
-        notRespondedTools = outputToolCall.functionCall.map(toolCall => toolCall.id)
+        notRespondedTools = outputToolCall.functionCall.map(toolCall => ({id: toolCall.id, name: toolCall.name}))
         // execute method!
         for (const toolCall of outputToolCall.functionCall) {
+          if (this.options.debugTools) {
+            console.log(`AI ASSISTANT: Tool call: ${toolCall.name}(${JSON.stringify(toolCall.arguments)})`)
+          }
           try {
             const result = await this.action(toolCall.name, toolCall.arguments)
+            if (this.options.debugTools) {
+              console.log(`AI ASSISTANT: Tool result: ${toolCall.name} => ${result}`)
+            }
             await this.aiProvider.addMessageToThread(threadId, { role: 'tool', functionCallId: toolCall.id, content: `${result}` })
-            notRespondedTools = notRespondedTools.filter(id => id !== toolCall.id)
+            notRespondedTools = notRespondedTools.filter(item => item.id !== toolCall.id)
           } catch (actionError) {
+            if (this.options.debugTools) {
+              console.log(`AI ASSISTANT: Tool error: ${toolCall.name} => ${actionError.message}`)
+            }
             await this.aiProvider.addMessageToThread(threadId, {
               role: 'tool',
               functionCallId: toolCall.id,
               content: `ERROR: ${actionError.message}`,
             })
-            notRespondedTools = notRespondedTools.filter(id => id !== toolCall.id)
+            notRespondedTools = notRespondedTools.filter(item => item.id !== toolCall.id)
           }
         }
       } else if ((response as ChatOutputMessage)?.content) {
@@ -203,10 +217,13 @@ export class Assistant {
     }
     this[isBusySymbol] = false
     if (notRespondedTools && notRespondedTools.length > 0) {
-      for (const toolId of notRespondedTools) {
+      if (this.options.debugTools) {
+        console.log(`AI ASSISTANT: Not all tools were responded: ${notRespondedTools.map(item => `${item.name}`).join(', ')}`)
+      }
+      for (const tool of notRespondedTools) {
         await this.aiProvider.addMessageToThread(threadId, {
           role: 'tool',
-          functionCallId: toolId,
+          functionCallId: tool.id,
           content: `ERROR: There was some error when calling action. Not all tools were responded.`,
         })
       }
@@ -308,8 +325,8 @@ export class Assistant {
     this.knowledgeAgentCallable = {
       askKnowledgeAgent: {
         reference: async (prompt: string) => {
-          if (this.knowledgeAgent) {
-            return this.knowledgeAgent.prompt(prompt)
+          if (this.options.knowledgeAgent) {
+            return this.options.knowledgeAgent.prompt(prompt)
           } else {
             throw new Error('Knowledge agent is not set')
           }
