@@ -73,7 +73,7 @@ export class Assistant {
    * @brief Decorator to register a method in the `callables` object.
    * @param description A description of the method being registered.
    */
-  public static Callable(description: string, parameters?: CallFunctionParameter[]) {
+  public static Callable(description: string, name?: string, parameters?: CallFunctionParameter[]) {
     return function <T extends { [key: string]: any }>(
       target: T,
       memberName: keyof T,
@@ -90,7 +90,7 @@ export class Assistant {
         description,
         paramsMap: (parameters ? parameters : functionMetadata.parameters).map(param => param.name),
         tool: {
-          name: functionMetadata.name,
+          name: name || functionMetadata.name,
           description,
           parameters: parameters ? parameters : functionMetadata.parameters,
         } as AIProviderFunction,
@@ -351,15 +351,16 @@ export class Assistant {
    * @returns The result of the method execution.
    */
   private async action(method: string, args: { name: string; value: any }[]): Promise<string> {
-    if (this.callables[method]) {
+    const methodDescriptor = Object.keys(this.callables).find(key => this.callables[key].tool.name === method)
+    if (methodDescriptor && this.callables[methodDescriptor]) {
       const parameters = args.map(arg => {
-        const param = this.callables[method].paramsMap.find(p => p === arg.name)
+        const param = this.callables[methodDescriptor].paramsMap.find(p => p === arg.name)
         if (!param) {
           throw new Error(`Parameter ${arg.name} not found in method ${method}`)
         }
         return arg.value
       })
-      return this.callables[method].reference.call(this, ...parameters)
+      return this.callables[methodDescriptor].reference.call(this, ...parameters)
     }
     return 'Not implemented or not callable'
   }
