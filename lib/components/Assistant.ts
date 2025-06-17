@@ -262,14 +262,17 @@ export class Assistant {
   /**
    * Search in history
    */
-  @Assistant.Callable(`
+  @Assistant.Callable(
+    `
     Search by text in history of chat messages.
     You can use time range to specify the search.
     If you dont want to use text for search, just use null for text property.
     You can also use only from or to in timerange. If you want to use to only, set from to undefined or 0.
     Timerange is always timestamp.
-  `)
-  public async searchHistory(text?: string, timeRangeFrom?: number, timeRangeTo?: number): Promise<string> {
+  `,
+    'searchInHistory',
+  )
+  public async searchInHistory(text?: string, timeRangeFrom?: number, timeRangeTo?: number): Promise<string> {
     const threadId = await this.awaitThreadId()
     return this.aiProvider.searchHistory(threadId, text, [timeRangeFrom, timeRangeTo])
   }
