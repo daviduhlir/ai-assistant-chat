@@ -22,13 +22,13 @@ export class OpenAIAssistant extends Assistant {
    * @brief Decorator to register a method in the `callables` object.
    * @param description A description of the method being registered.
    */
-  public static Callable(description: string, parameters?: CallFunctionParameter[]) {
+  public static Callable(description: string, name?: string, parameters?: CallFunctionParameter[]) {
     return function <T extends { [key: string]: any }>(
       target: T,
       memberName: keyof T,
       descriptor: TypedPropertyDescriptor<(...args: any[]) => Promise<string>>,
     ) {
-      Assistant.Callable(description, parameters)(target, memberName, descriptor)
+      Assistant.Callable(description, name, parameters)(target, memberName, descriptor)
     }
   }
 
