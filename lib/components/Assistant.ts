@@ -41,6 +41,7 @@ const isCallableKey = Symbol('isCallable')
 const threadIdSymbol = Symbol('threadId')
 const creatingThreadSymbol = Symbol('creatingThread')
 const isBusySymbol = Symbol('isBusy')
+const isAbleToContinueSymbol = Symbol('isAbleToContinue')
 
 export type ChatCallable = {
   reference: (...params: any[]) => Promise<any>
@@ -148,6 +149,14 @@ export class Assistant {
   }
 
   /**
+   * Stops the actual prompt processing
+   * This will make the prompt method to finish as soon as possible
+   */
+  public breakActualPrompt() {
+    this[isAbleToContinueSymbol] = false
+  }
+
+  /**
    * @brief Sends a prompt to the assistant and processes the response.
    * @param prompt The user prompt to send.
    * @param limit The maximum number of iterations to attempt.
@@ -161,13 +170,14 @@ export class Assistant {
 
     const threadId = await this.awaitThreadId()
     this[isBusySymbol] = true
+    this[isAbleToContinueSymbol] = true
 
     await this.aiProvider.addMessageToThread(threadId, { role: 'user', content: prompt })
 
     let itterations = 0
     const preambles = []
     let notRespondedTools: { id: string; name: string }[] = null
-    while (itterations < limit) {
+    while (itterations < limit && this[isAbleToContinueSymbol]) {
       itterations++
       let response: ChatExecutionResult
       try {
@@ -182,6 +192,9 @@ export class Assistant {
         notRespondedTools = outputToolCall.functionCall.map(toolCall => ({ id: toolCall.id, name: toolCall.name }))
         // execute method!
         for (const toolCall of outputToolCall.functionCall) {
+          if (!this[isAbleToContinueSymbol]) {
+            break
+          }
           if (this.options.debugTools) {
             console.log(`AI ASSISTANT: Tool call: ${toolCall.name}(${JSON.stringify(toolCall.arguments)})`)
           }
@@ -230,7 +243,11 @@ export class Assistant {
       await this.aiProvider.executeThread(threadId)
       throw new Error(`Not all tools were responded: ${notRespondedTools.join(', ')}, will finsh them with error.`)
     }
-    throw new Error(`Too many attempts to get a valid response`)
+    if (this[isAbleToContinueSymbol]) {
+      throw new Error(`Too many attempts to get a valid response`)
+    } else {
+      return 'The process was interrupted.'
+    }
   }
 
   /**
