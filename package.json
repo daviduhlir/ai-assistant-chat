@@ -38,6 +38,7 @@
     "typescript": "^5.5.4"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.0",
     "openai": "^4.93.0",
     "reflect-metadata": "^0.2.2"
   }
