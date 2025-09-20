@@ -2,11 +2,13 @@
   "name": "chat-example",
   "version": "1.0.0",
   "description": "",
-  "main": "./build/index.js",
+  "main": "./build/index.openai.js",
   "scripts": {
     "build": "rimraf ./build && tsc",
-    "start": "npm run build && node --enable-source-maps ./build/index.js",
-    "inspect": "npm run build && node --enable-source-maps --inspect ./build/index.js"
+    "start:openai": "npm run build && node --enable-source-maps ./build/index.openai.js",
+    "start:anthropic": "npm run build && node --enable-source-maps ./build/index.anthropic.js",
+    "inspect:openai": "npm run build && node --enable-source-maps --inspect ./build/index.openai.js",
+    "inspect:anthropic": "npm run build && node --enable-source-maps --inspect ./build/index.anthropic.js"
   },
   "author": "David Uhlíř",
   "license": "ISC",
