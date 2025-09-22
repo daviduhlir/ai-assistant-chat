@@ -352,6 +352,20 @@ export class AnthropicChatProvider extends AIProvider {
    * Transform input message to Anthropic format
    */
   protected static transformInputMessage(message: ChatInputMessage): Anthropic.MessageParam {
+    // Handle tool results - Anthropic expects tool results as user messages with tool_result content
+    if (message.role === 'tool' && message.functionCallId) {
+      return {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: message.functionCallId,
+            content: typeof message.content === 'string' ? message.content : JSON.stringify(message.content),
+          },
+        ],
+      } as Anthropic.MessageParam
+    }
+
     if (typeof message.content === 'string') {
       return {
         role: message.role as 'user' | 'assistant',
