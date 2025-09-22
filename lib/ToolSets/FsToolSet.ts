@@ -186,14 +186,39 @@ export class FsToolSet extends ToolSet {
     }
   }
 
-  @ToolSet.Callable('Get file or directory stats')
-  public async stat(path: string): Promise<string> {
+  @ToolSet.Callable('Get file or directory stats, including type and existence')
+  public async fsStat(path: string): Promise<string> {
     path = this.normalizePath(path)
     try {
       const stats = await this.fs.stat(path)
-      return `**Stats for \`${path}\`:**\n\n\`\`\`json\n${JSON.stringify(stats, null, 2)}\n\`\`\``
+      const type = stats.isDirectory() ? 'directory' : stats.isFile() ? 'file' : 'other'
+      return [
+        `**Stats for \`${path}\`:**`,
+        '',
+        '| Property   | Value |',
+        '|------------|-------|',
+        `| exists     | true  |`,
+        `| type       | ${type} |`,
+        `| size       | ${stats.size} |`,
+        `| mtime      | ${stats.mtime} |`,
+        `| atime      | ${stats.atime} |`,
+        `| ctime      | ${stats.ctime} |`,
+        `| birthtime  | ${stats.birthtime} |`,
+        `| mode       | ${stats.mode} |`,
+        `| uid        | ${stats.uid} |`,
+        `| gid        | ${stats.gid} |`,
+        `| ino        | ${stats.ino} |`,
+        `| dev        | ${stats.dev} |`,
+      ].join('\n')
     } catch (e: any) {
-      return `❌ Error getting stats for \`${path}\`: ${e.message || e}`
+      return [
+        `**Stats for \`${path}\`:**`,
+        '',
+        '| Property   | Value |',
+        '|------------|-------|',
+        `| exists     | false |`,
+        `| error      | ${e.message || e} |`,
+      ].join('\n')
     }
   }
 
@@ -205,6 +230,17 @@ export class FsToolSet extends ToolSet {
       return `✅ Directory "${path}" created successfully.`
     } catch (e: any) {
       return `❌ Error creating directory \`${path}\`: ${e.message || e}`
+    }
+  }
+
+  @ToolSet.Callable('Deletes a directory and all its contents recursively')
+  public async deleteFolder(path: string): Promise<string> {
+    path = this.normalizePath(path)
+    try {
+      await this.fs.rm(path, { recursive: true, force: true })
+      return `✅ Directory "${path}" deleted successfully.`
+    } catch (e: any) {
+      return `❌ Error deleting directory \`${path}\`: ${e.message || e}`
     }
   }
 
@@ -234,6 +270,158 @@ export class FsToolSet extends ToolSet {
       return `**Directory tree for \`${dir}\`:**\n\n${tree.join('\n')}`
     } catch (e: any) {
       return `❌ Error showing tree for \`${dir}\`: ${e.message || e}`
+    }
+  }
+
+  @ToolSet.Callable('Search and replace a string in all text/code files in a directory tree')
+  public async searchAndReplaceInFS(rootDir: string, search: string, replace: string): Promise<string> {
+    rootDir = this.normalizePath(rootDir)
+    let changedFiles = 0
+    let changedCount = 0
+    try {
+      async function walk(this: FsToolSet, dir: string) {
+        let entries
+        try {
+          entries = await this.fs.readdir(dir, { withFileTypes: true })
+        } catch {
+          return
+        }
+        for (const entry of entries) {
+          const fullPath = pathModule.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            await walk.call(this, fullPath)
+          } else if (entry.isFile() && /\.(txt|md|js|ts|json|css|html|py|java|c|cpp|h|cs|go|rb|php|xml|yml|yaml|sh)$/i.test(entry.name)) {
+            try {
+              const content = await this.fs.readFile(fullPath, 'utf8')
+              if (content.includes(search)) {
+                const replaced = content.split(search).join(replace)
+                await this.fs.writeFile(fullPath, replaced, 'utf8')
+                changedFiles++
+                changedCount += (content.match(new RegExp(search, 'g')) || []).length
+              }
+            } catch {}
+          }
+        }
+      }
+      await walk.call(this, rootDir)
+      return `✅ Replaced "${search}" with "${replace}" in ${changedFiles} files, total ${changedCount} replacements.`
+    } catch (e: any) {
+      return `❌ Error replacing in FS \`${rootDir}\`: ${e.message || e}`
+    }
+  }
+
+  @ToolSet.Callable('Search for a regexp pattern in a file, returns markdown table of matches')
+  public async searchInFileRegexp(path: string, pattern: string): Promise<string> {
+    path = this.normalizePath(path)
+    try {
+      const content = await this.fs.readFile(path, 'utf8')
+      const re = new RegExp(pattern, 'g')
+      const lines = content.split(/\r?\n/)
+      const results: { line: number; column: number; match: string }[] = []
+      lines.forEach((lineText, idx) => {
+        let match
+        while ((match = re.exec(lineText)) !== null) {
+          results.push({ line: idx + 1, column: match.index + 1, match: match[0] })
+        }
+        re.lastIndex = 0 // Reset index for next line
+      })
+      if (results.length === 0) return `No matches found for /${pattern}/ in \`${path}\`.`
+      return `**Matches for /${pattern}/ in \`${path}\`:**\n\n| Line | Column | Match |\n|---|---|---|\n${results.map(r => `| ${r.line} | ${r.column} | \`${r.match}\` |`).join('\n')}`
+    } catch (e: any) {
+      return `❌ Error searching in file \`${path}\`: ${e.message || e}`
+    }
+  }
+
+  @ToolSet.Callable('Search for a regexp pattern in all text/code files in a directory tree, returns markdown table of matches')
+  public async searchInFSRegexp(rootDir: string, pattern: string): Promise<string> {
+    rootDir = this.normalizePath(rootDir)
+    const results: { file: string; line: number; column: number; match: string }[] = []
+    try {
+      const re = new RegExp(pattern, 'g')
+      async function walk(this: FsToolSet, dir: string) {
+        let entries
+        try {
+          entries = await this.fs.readdir(dir, { withFileTypes: true })
+        } catch {
+          return
+        }
+        for (const entry of entries) {
+          const fullPath = pathModule.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            await walk.call(this, fullPath)
+          } else if (entry.isFile() && /\.(txt|md|js|ts|json|css|html|py|java|c|cpp|h|cs|go|rb|php|xml|yml|yaml|sh)$/i.test(entry.name)) {
+            try {
+              const content = await this.fs.readFile(fullPath, 'utf8')
+              const lines = content.split(/\r?\n/)
+              lines.forEach((lineText, idx) => {
+                let match
+                while ((match = re.exec(lineText)) !== null) {
+                  results.push({ file: fullPath, line: idx + 1, column: match.index + 1, match: match[0] })
+                }
+                re.lastIndex = 0
+              })
+            } catch {}
+          }
+        }
+      }
+      await walk.call(this, rootDir)
+      if (results.length === 0) return `No matches found for /${pattern}/ in \`${rootDir}\`.`
+      return `**Matches for /${pattern}/ in \`${rootDir}\`:**\n\n| File | Line | Column | Match |\n|---|---|---|---|\n${results.map(r => `| \`${r.file}\` | ${r.line} | ${r.column} | \`${r.match}\` |`).join('\n')}`
+    } catch (e: any) {
+      return `❌ Error searching in FS \`${rootDir}\`: ${e.message || e}`
+    }
+  }
+
+  @ToolSet.Callable('Replace in file using regexp pattern and replacement (pattern and replacement are string parameters)')
+  public async replaceInFileRegexp(path: string, pattern: string, replacement: string): Promise<string> {
+    path = this.normalizePath(path)
+    try {
+      const content = await this.fs.readFile(path, 'utf8')
+      const re = new RegExp(pattern, 'g')
+      const replaced = content.replace(re, replacement)
+      await this.fs.writeFile(path, replaced, 'utf8')
+      const count = (content.match(re) || []).length
+      return `✅ Replaced pattern /${pattern}/ in \`${path}\` (${count} replacements).`
+    } catch (e: any) {
+      return `❌ Error replacing in file \`${path}\`: ${e.message || e}`
+    }
+  }
+
+  @ToolSet.Callable('Search and replace a regexp pattern in all text/code files in a directory tree')
+  public async searchAndReplaceInFSRegexp(rootDir: string, pattern: string, replacement: string): Promise<string> {
+    rootDir = this.normalizePath(rootDir)
+    let changedFiles = 0
+    let changedCount = 0
+    try {
+      const re = new RegExp(pattern, 'g')
+      async function walk(this: FsToolSet, dir: string) {
+        let entries
+        try {
+          entries = await this.fs.readdir(dir, { withFileTypes: true })
+        } catch {
+          return
+        }
+        for (const entry of entries) {
+          const fullPath = pathModule.join(dir, entry.name)
+          if (entry.isDirectory()) {
+            await walk.call(this, fullPath)
+          } else if (entry.isFile() && /\.(txt|md|js|ts|json|css|html|py|java|c|cpp|h|cs|go|rb|php|xml|yml|yaml|sh)$/i.test(entry.name)) {
+            try {
+              const content = await this.fs.readFile(fullPath, 'utf8')
+              if (re.test(content)) {
+                const replaced = content.replace(re, replacement)
+                await this.fs.writeFile(fullPath, replaced, 'utf8')
+                changedFiles++
+                changedCount += (content.match(re) || []).length
+              }
+            } catch {}
+          }
+        }
+      }
+      await walk.call(this, rootDir)
+      return `✅ Replaced pattern /${pattern}/ with "${replacement}" in ${changedFiles} files, total ${changedCount} replacements.`
+    } catch (e: any) {
+      return `❌ Error replacing in FS \`${rootDir}\`: ${e.message || e}`
     }
   }
 }
