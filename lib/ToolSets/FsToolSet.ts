@@ -326,7 +326,9 @@ export class FsToolSet extends ToolSet {
         re.lastIndex = 0 // Reset index for next line
       })
       if (results.length === 0) return `No matches found for /${pattern}/ in \`${path}\`.`
-      return `**Matches for /${pattern}/ in \`${path}\`:**\n\n| Line | Column | Match |\n|---|---|---|\n${results.map(r => `| ${r.line} | ${r.column} | \`${r.match}\` |`).join('\n')}`
+      return `**Matches for /${pattern}/ in \`${path}\`:**\n\n| Line | Column | Match |\n|---|---|---|\n${results
+        .map(r => `| ${r.line} | ${r.column} | \`${r.match}\` |`)
+        .join('\n')}`
     } catch (e: any) {
       return `❌ Error searching in file \`${path}\`: ${e.message || e}`
     }
@@ -366,7 +368,9 @@ export class FsToolSet extends ToolSet {
       }
       await walk.call(this, rootDir)
       if (results.length === 0) return `No matches found for /${pattern}/ in \`${rootDir}\`.`
-      return `**Matches for /${pattern}/ in \`${rootDir}\`:**\n\n| File | Line | Column | Match |\n|---|---|---|---|\n${results.map(r => `| \`${r.file}\` | ${r.line} | ${r.column} | \`${r.match}\` |`).join('\n')}`
+      return `**Matches for /${pattern}/ in \`${rootDir}\`:**\n\n| File | Line | Column | Match |\n|---|---|---|---|\n${results
+        .map(r => `| \`${r.file}\` | ${r.line} | ${r.column} | \`${r.match}\` |`)
+        .join('\n')}`
     } catch (e: any) {
       return `❌ Error searching in FS \`${rootDir}\`: ${e.message || e}`
     }
