@@ -69,44 +69,8 @@ constructor(
 - **Parameters**:
   - `aiProvider`: An instance of a class implementing the `AIProvider` interface.
   - `systemInstructions`: A string describing the assistant's role and behavior.
-  - `knowledgeAgent`: (Optional) An instance of `KnowledgeAgent` for querying a knowledge base.
 
 - **Description**: Initializes a new instance of the `Assistant` class.
-
----
-
-### `KnowledgeAgent`
-
-The `KnowledgeAgent` class provides an interface for querying a knowledge base. It can be used to enhance the assistant's capabilities by providing additional context or information.
-
-#### `constructor`
-
-```typescript
-constructor(options: { endpoint: string; apiKey: string });
-```
-
-- **Parameters**:
-  - `endpoint`: The URL of the knowledge base API.
-  - `apiKey`: The API key for authenticating with the knowledge base.
-
-#### `initialize`
-
-```typescript
-async initialize(): Promise<void>;
-```
-
-- **Description**: Initializes the `KnowledgeAgent` by establishing a connection to the knowledge base.
-
-#### `prompt`
-
-```typescript
-async prompt(query: string): Promise<string>;
-```
-
-- **Parameters**:
-  - `query`: The query string to send to the knowledge base.
-
-- **Returns**: A promise that resolves to the response from the knowledge base.
 
 ---
 
@@ -170,7 +134,6 @@ constructor(
   systemInstructions: string,
   options?: Partial<OpenAIChatProviderOptions>,
   initialMessages?: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-  knowledgeAgent?: KnowledgeAgent
 )
 ```
 
@@ -179,7 +142,6 @@ constructor(
   - `systemInstructions`: A string describing the assistant's role and behavior.
   - `options`: (Optional) Configuration options for the OpenAI provider, such as the model and temperature.
   - `initialMessages`: (Optional) A history of initial chat messages.
-  - `knowledgeAgent`: (Optional) An instance of `KnowledgeAgent` for querying a knowledge base.
 
 ---
 
@@ -211,12 +173,135 @@ console.log(response);
 
 ## How It Works
 
-1. **Initialization**: Create an instance of `Assistant` or `OpenAIAssistant` with an AI provider, system instructions, and optionally a `KnowledgeAgent`.
+1. **Initialization**: Create an instance of `Assistant` or `OpenAIAssistant` with an AI provider, system
 2. **Register Methods**: Use the `@Assistant.Callable` decorator to register methods that the assistant can invoke.
 3. **Send Prompts**: Use the `prompt` method to send user input to the assistant and process its response.
-4. **KnowledgeAgent Integration**:
-   - The `KnowledgeAgent` can be used to query a knowledge base for additional context or information.
-   - Methods like `prompt` allow the assistant to retrieve relevant data from the knowledge base.
+
+---
+
+## ToolSets
+
+ToolSets provide a modular way to extend your assistant with additional capabilities through pre-built or custom tool collections. They allow you to group related functionality and easily compose different sets of tools for your assistant.
+
+### Using ToolSets
+
+ToolSets are passed to the assistant through the `toolsets` option. For file system operations, always use a safe wrapper like `memfs` or `linkfs`:
+
+```typescript
+import { AnthropicAssistant, FsToolSet } from '@david.uhlir/ai-assistant-chat';
+import Anthropic from '@anthropic-ai/sdk';
+import { createFsFromVolume, Volume } from 'memfs';
+
+// Create a safe, controlled file system
+const volume = new Volume();
+const safeFs = createFsFromVolume(volume);
+const fsToolSet = new FsToolSet(safeFs.promises as any);
+
+const anthropic = new Anthropic({ apiKey: 'your-api-key' });
+
+class MyAssistant extends AnthropicAssistant {}
+
+const assistant = new MyAssistant(anthropic, 'You are a helpful assistant.', {
+  toolsets: [fsToolSet],
+  debugTools: true  // Optional: enables debug output for tool calls
+});
+
+// The assistant can now use file system operations safely
+const response = await assistant.prompt('Create a simple TypeScript project with a hello world file');
+```
+
+#### Complete Example with In-Memory File System
+
+```typescript
+import Anthropic from '@anthropic-ai/sdk';
+import { AnthropicAssistant, FsToolSet } from '@david.uhlir/ai-assistant-chat';
+import { createFsFromVolume, Volume } from 'memfs';
+
+async function main() {
+  // Create in-memory file system
+  const volume = new Volume();
+  const volumeFs = createFsFromVolume(volume);
+  const fsToolSet = new FsToolSet(volumeFs.promises as any);
+
+  // Create assistant with file system capabilities
+  const anthropic = new Anthropic({ apiKey: process.env.apiKey });
+
+  class FileAssistant extends AnthropicAssistant {}
+
+  const assistant = new FileAssistant(anthropic, 'You are a helpful assistant.', {
+    toolsets: [fsToolSet],
+    debugTools: true
+  });
+
+  // Ask the assistant to work with files
+  const response = await assistant.prompt(
+    'Create a TypeScript project with package.json, index.ts with hello world, and README.md'
+  );
+
+  console.log('Assistant response:', response);
+  console.log('Created files:', volume.toJSON());
+}
+```
+
+### Creating Custom ToolSets
+
+You can create custom ToolSets by extending the `ToolSet` class and using the `@ToolSet.Callable` decorator:
+
+```typescript
+import { ToolSet } from '@david.uhlir/ai-assistant-chat';
+
+export class DatabaseToolSet extends ToolSet {
+  constructor(private db: Database) {
+    super();
+  }
+
+  @ToolSet.Callable('Fetch user by ID from database')
+  public async getUser(userId: string): Promise<string> {
+    const user = await this.db.findUser(userId);
+    return JSON.stringify(user);
+  }
+
+  @ToolSet.Callable('Create a new user in database')
+  public async createUser(name: string, email: string): Promise<string> {
+    const user = await this.db.createUser({ name, email });
+    return `User created with ID: ${user.id}`;
+  }
+}
+```
+
+### Nested ToolSets
+
+ToolSets support nesting, allowing you to compose functionality from multiple sources:
+
+```typescript
+const mainToolSet = new MainToolSet([childToolSet1, childToolSet2]);
+```
+
+### Built-in ToolSets
+
+#### FsToolSet
+
+The `FsToolSet` provides file system operations for the assistant:
+
+- `readFile(path)` - Read file contents
+- `writeFile(path, content)` - Write content to file
+- `deleteFile(path)` - Delete a file
+- `listFiles(dir)` - List files in directory
+- `fileExists(path)` - Check if file exists
+- `searchInFile(path, query)` - Search for text in file
+- `tree(dir, depth)` - Show directory tree structure
+
+**⚠️ Security Warning**: Never give the AI direct access to your real file system. Always use controlled environments like `memfs` for in-memory operations, `linkfs` for sandboxed access to specific directories, or other safe wrappers. The AI can create, modify, and delete files - carefully consider what directories you expose.
+
+```typescript
+import { FsToolSet } from '@david.uhlir/ai-assistant-chat';
+import { createFsFromVolume, Volume } from 'memfs';
+
+// Always use a safe wrapper, never direct fs access
+const volume = new Volume();
+const safeFs = createFsFromVolume(volume);
+const fsToolSet = new FsToolSet(safeFs.promises as any);
+```
 
 ---
 
