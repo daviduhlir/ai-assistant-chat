@@ -1,6 +1,6 @@
 import 'reflect-metadata'
-import { AIProviderFunction, CallFunctionParameter, ChatCallable } from '../interfaces';
-import { FunctionUtils } from '../utils/functions';
+import { AIProviderFunction, CallFunctionParameter, ChatCallable } from '../interfaces'
+import { FunctionUtils } from '../utils/functions'
 
 const isCallableKey = Symbol('isCallable')
 const additionalCallablesSymbol = Symbol('additionalCallables')
@@ -64,7 +64,7 @@ export class ToolSet {
         // Update target to point to the correct instance instead of prototype
         acc[key] = {
           ...toolSetCallables[key],
-          target: toolSet
+          target: toolSet,
         }
       })
       return acc

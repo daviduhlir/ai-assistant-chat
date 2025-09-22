@@ -31,7 +31,15 @@
  */
 import 'reflect-metadata'
 import { AIProvider } from './AIProvider'
-import { CallFunctionParameter, ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage, AIProviderFunction, ChatExecutionResult, ChatCallable } from '../interfaces'
+import {
+  CallFunctionParameter,
+  ChatMessageInputContent,
+  ChatOutputMessage,
+  ChatOutputToolCallMessage,
+  AIProviderFunction,
+  ChatExecutionResult,
+  ChatCallable,
+} from '../interfaces'
 import { ToolSet } from './ToolSet'
 
 // callbale descriptor
@@ -316,7 +324,9 @@ export class Assistant extends ToolSet {
         }
         return arg.value
       })
-      return this.callables[methodDescriptor].reference.bind(this.callables[methodDescriptor].target).call(this.callables[methodDescriptor].target, ...parameters)
+      return this.callables[methodDescriptor].reference
+        .bind(this.callables[methodDescriptor].target)
+        .call(this.callables[methodDescriptor].target, ...parameters)
     }
     return 'Not implemented or not callable'
   }

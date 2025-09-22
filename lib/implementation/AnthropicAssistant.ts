@@ -47,7 +47,11 @@ export class AnthropicAssistant extends Assistant {
     options: Partial<AnthropicAssistantOptions> = ANTHROPIC_CHAT_PROVIDER_DEFAULT_OPTIONS,
     initialMessages: Anthropic.MessageParam[] = [],
   ) {
-    super(new AnthropicChatProvider(anthropic, { ...ANTHROPIC_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages), systemInstructions, options)
+    super(
+      new AnthropicChatProvider(anthropic, { ...ANTHROPIC_CHAT_PROVIDER_DEFAULT_OPTIONS, ...options }, initialMessages),
+      systemInstructions,
+      options,
+    )
   }
 
   /**

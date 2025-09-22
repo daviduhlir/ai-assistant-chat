@@ -138,15 +138,13 @@ export class AnthropicChatProvider extends AIProvider {
     // Convert Anthropic response to our format
     const messageParam: Anthropic.MessageParam = {
       role: 'assistant',
-      content: result.message.content
+      content: result.message.content,
     }
     thread.messages.push(messageParam)
     thread.history.push(messageParam)
 
     // Check for tool use in message content
-    const toolUseBlocks = Array.isArray(result.message.content)
-      ? result.message.content.filter(block => block.type === 'tool_use')
-      : []
+    const toolUseBlocks = Array.isArray(result.message.content) ? result.message.content.filter(block => block.type === 'tool_use') : []
 
     if (toolUseBlocks.length > 0) {
       this.toolInProgress = true
@@ -213,9 +211,7 @@ export class AnthropicChatProvider extends AIProvider {
         if (typeof message.content === 'string') {
           return message.content.toLowerCase().includes(text.toLowerCase())
         } else if (Array.isArray(message.content)) {
-          return message.content.some(content =>
-            content.type === 'text' && content.text.toLowerCase().includes(text.toLowerCase())
-          )
+          return message.content.some(content => content.type === 'text' && content.text.toLowerCase().includes(text.toLowerCase()))
         } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
           const bufferMessage: ChatMessageInputBufferContent = message.content as any
           return bufferMessage.message?.toLowerCase().includes(text.toLowerCase())
@@ -240,7 +236,7 @@ export class AnthropicChatProvider extends AIProvider {
         if (typeof message.content === 'string') {
           content = message.content
         } else if (Array.isArray(message.content)) {
-          content = message.content.map(c => c.type === 'text' ? (c as any).text : '[non-text content]').join(' ')
+          content = message.content.map(c => (c.type === 'text' ? (c as any).text : '[non-text content]')).join(' ')
         } else {
           content = `${(message.content as any).message} \n [binary]`
         }
@@ -308,7 +304,7 @@ export class AnthropicChatProvider extends AIProvider {
       temperature: this.options.temperature,
       system: systemPrompt,
       messages,
-      tools: preparedTools.length > 0 ? preparedTools as any : undefined,
+      tools: preparedTools.length > 0 ? (preparedTools as any) : undefined,
       max_tokens: this.options.maxTokens,
     })
 
@@ -331,10 +327,7 @@ export class AnthropicChatProvider extends AIProvider {
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
     }
-    const summaryResult = await this.runCompletion(
-      this.SUMMARIZE_PROMPT(this.options.summarizeKeepLastMessages || 2),
-      thread.messages,
-    )
+    const summaryResult = await this.runCompletion(this.SUMMARIZE_PROMPT(this.options.summarizeKeepLastMessages || 2), thread.messages)
     if (summaryResult?.message?.content) {
       let content = ''
       if (typeof summaryResult.message.content === 'string') {
