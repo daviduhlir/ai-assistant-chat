@@ -7,7 +7,7 @@
   "scripts": {
     "build": "rimraf ./dist && tsc",
     "build:release": "rimraf ./dist && tsc --p tsconfig.release.json",
-    "prettier-check": "prettier-check --config .prettierrc.json 'lib/**/*.ts'",
+    "prettier-check": "prettier check --config .prettierrc.json 'lib/**/*.ts'",
     "prettier-format": "prettier --config .prettierrc.json 'lib/**/*.ts' --write",
     "test": "npm run build && ts-mocha --timeout 10000 --type-check -p ./tsconfig.json tests/**/*.spec.ts",
     "test:release": "npm run build && ts-mocha --timeout 10000 --type-check -p ./tsconfig.json tests/**/*.spec.ts",

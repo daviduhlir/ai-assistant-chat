@@ -41,3 +41,18 @@ export interface CallFunctionParameter {
   type: string
   default?: string
 }
+
+export type ChatExecutionResult = ChatOutputMessage | ChatOutputToolCallMessage
+export interface AIProviderFunction {
+  name: string
+  description: string
+  parameters: CallFunctionParameter[]
+}
+
+export type ChatCallable = {
+  target: any
+  reference: (...params: any[]) => Promise<any>
+  description: string
+  tool: AIProviderFunction
+  paramsMap: string[]
+}

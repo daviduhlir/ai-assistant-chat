@@ -30,36 +30,26 @@
  * console.log(response);
  */
 import 'reflect-metadata'
-import { AIProvider, AIProviderFunction, ChatExecutionResult } from './AIProvider'
-import { CallFunctionParameter, ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage } from '../interfaces'
-import { FunctionUtils } from '../utils/functions'
-import { KnowledgeAgent } from './KnowledgeAgent'
+import { AIProvider } from './AIProvider'
+import { CallFunctionParameter, ChatMessageInputContent, ChatOutputMessage, ChatOutputToolCallMessage, AIProviderFunction, ChatExecutionResult, ChatCallable } from '../interfaces'
+import { ToolSet } from './ToolSet'
 
 // callbale descriptor
-const isCallableKey = Symbol('isCallable')
-
 const threadIdSymbol = Symbol('threadId')
 const creatingThreadSymbol = Symbol('creatingThread')
 const isBusySymbol = Symbol('isBusy')
 const isAbleToContinueSymbol = Symbol('isAbleToContinue')
 
-export type ChatCallable = {
-  reference: (...params: any[]) => Promise<any>
-  description: string
-  tool: AIProviderFunction
-  paramsMap: string[]
-}
-
 export interface AssistantOptions {
-  knowledgeAgent?: KnowledgeAgent
   debugTools?: boolean
+  toolsets?: ToolSet[]
 }
 
 /**
  * Chat class
  * @description This class is used to interact with OpenAI's chat API.
  */
-export class Assistant {
+export class Assistant extends ToolSet {
   /**
    * @brief Generates the base prompt for OpenAI.
    * @param callables A dictionary of callable methods with their signatures and descriptions.
@@ -79,30 +69,8 @@ export class Assistant {
    * @brief Decorator to register a method in the `callables` object.
    * @param description A description of the method being registered.
    */
-  public static Callable(description: string, name?: string, parameters?: CallFunctionParameter[]) {
-    return function <T extends { [key: string]: any }>(
-      target: T,
-      memberName: keyof T,
-      descriptor: TypedPropertyDescriptor<(...args: (string | number | boolean)[]) => Promise<string>>,
-    ) {
-      if (typeof descriptor.value !== 'function') {
-        throw new Error(`@Callable can only be applied to methods.`)
-      }
-
-      const functionMetadata = FunctionUtils.extractMethodMetadata(target, memberName as string)
-      let callables = Reflect.getMetadata(isCallableKey, target) || {}
-      callables[memberName] = {
-        reference: descriptor.value,
-        description,
-        paramsMap: (parameters ? parameters : functionMetadata.parameters).map(param => param.name),
-        tool: {
-          name: name || functionMetadata.name,
-          description,
-          parameters: parameters ? parameters : functionMetadata.parameters,
-        } as AIProviderFunction,
-      }
-      Reflect.defineMetadata(isCallableKey, callables, target)
-    }
+  public static Callable(description: string, name?: string | symbol, parameters?: CallFunctionParameter[]) {
+    return ToolSet.Callable(description, name, parameters)
   }
 
   /**
@@ -112,10 +80,8 @@ export class Assistant {
    * @param messages A history of chat messages.
    */
   constructor(readonly aiProvider: AIProvider, readonly systemInstructions: string, readonly options: AssistantOptions = {}) {
+    super(options.toolsets)
     this.initialize()
-    if (this.options.knowledgeAgent) {
-      this.createAgentCallables()
-    }
   }
 
   /**
@@ -125,9 +91,6 @@ export class Assistant {
    */
   public async initialize() {
     if (!this[creatingThreadSymbol]) {
-      if (this.options.knowledgeAgent) {
-        await this.options.knowledgeAgent.initialize()
-      }
       this[creatingThreadSymbol] = true
       const threadId = await this.aiProvider.createThread(
         this.BASE_PROMPT(this.callables, this.systemInstructions),
@@ -251,19 +214,6 @@ export class Assistant {
   }
 
   /**
-   * @brief Retrieves a list of callable method signatures and descriptions.
-   * @returns An array of strings representing callable method signatures and descriptions.
-   */
-  public getCallables() {
-    return Object.keys(this.callables).map(key => {
-      return {
-        key,
-        description: this.callables[key].description,
-      }
-    })
-  }
-
-  /**
    * @brief Checks if the assistant is currently busy processing a request.
    * @returns A boolean indicating whether the assistant is busy.
    */
@@ -311,6 +261,19 @@ export class Assistant {
     return this.aiProvider.searchHistory(threadId, text, [timeRangeFrom, timeRangeTo])
   }
 
+  /**
+   * @brief Retrieves a list of callable method signatures and descriptions.
+   * @returns An array of strings representing callable method signatures and descriptions.
+   */
+  public getCallables() {
+    return Object.keys(this.callables).map(key => {
+      return {
+        key,
+        description: this.callables[key].description,
+      }
+    })
+  }
+
   /***************************************
    *
    * Internal implementation
@@ -319,50 +282,6 @@ export class Assistant {
   protected [isBusySymbol]: boolean = false
   protected [threadIdSymbol]: string = null
   protected [creatingThreadSymbol]: boolean = false
-  protected knowledgeAgentCallable: {
-    [name: string]: ChatCallable
-  } = null
-
-  /**
-   * Get all handlers
-   */
-  private get callables(): {
-    [name: string]: ChatCallable
-  } {
-    return {
-      ...(Reflect.getMetadata(isCallableKey, this) || {}),
-      ...(this.knowledgeAgentCallable || {}),
-    }
-  }
-
-  /**
-   * Create agent callables
-   */
-  private createAgentCallables() {
-    this.knowledgeAgentCallable = {
-      askKnowledgeAgent: {
-        reference: async (prompt: string) => {
-          if (this.options.knowledgeAgent) {
-            return this.options.knowledgeAgent.prompt(prompt)
-          } else {
-            throw new Error('Knowledge agent is not set')
-          }
-        },
-        description: 'Ask knowledge agent, use this function if you will need to know anything from knowledge base.',
-        paramsMap: ['prompt'],
-        tool: {
-          name: 'askKnowledgeAgent',
-          description: 'Ask knowledge agent',
-          parameters: [
-            {
-              name: 'prompt',
-              type: 'string',
-            },
-          ],
-        },
-      },
-    }
-  }
 
   /**
    * Await thread Id to be set
@@ -397,7 +316,7 @@ export class Assistant {
         }
         return arg.value
       })
-      return this.callables[methodDescriptor].reference.call(this, ...parameters)
+      return this.callables[methodDescriptor].reference.bind(this.callables[methodDescriptor].target).call(this.callables[methodDescriptor].target, ...parameters)
     }
     return 'Not implemented or not callable'
   }

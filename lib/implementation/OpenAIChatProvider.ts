@@ -1,6 +1,6 @@
 import OpenAI from 'openai'
-import { ChatInputMessage, ChatMessageInputBufferContent } from '../interfaces'
-import { AIProvider, AIProviderFunction, ChatExecutionResult } from '../components/AIProvider'
+import { ChatInputMessage, ChatMessageInputBufferContent, AIProviderFunction, ChatExecutionResult } from '../interfaces'
+import { AIProvider } from '../components/AIProvider'
 import { randomHash } from '../utils'
 
 export interface OpenAIChatProviderOptions {
