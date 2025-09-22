@@ -1,6 +1,6 @@
 {
   "name": "@david.uhlir/ai-assistant-chat",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Chat helper for AI assistants with ability to call methods",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
