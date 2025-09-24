@@ -36,7 +36,6 @@ import {
   ChatMessageInputContent,
   ChatOutputMessage,
   ChatOutputToolCallMessage,
-  AIProviderFunction,
   ChatExecutionResult,
   ChatCallable,
 } from '../interfaces'
