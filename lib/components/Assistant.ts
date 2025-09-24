@@ -164,7 +164,7 @@ export class Assistant extends ToolSet {
 
       if ((response as ChatOutputToolCallMessage).functionCall) {
         const outputToolCall = response as ChatOutputToolCallMessage
-        this.notRespondedTools = outputToolCall.functionCall.map(toolCall => ({ id: toolCall.id, name: toolCall.name }))
+        outputToolCall.functionCall.forEach(toolCall => this.notRespondedTools[toolCall.id] = toolCall.name)
         // execute method!
         for (const toolCall of outputToolCall.functionCall) {
           if (!this[isAbleToContinueSymbol] || wasStopped) {
@@ -183,7 +183,7 @@ export class Assistant extends ToolSet {
               break
             }
             await this.aiProvider.addMessageToThread(threadId, { role: 'tool', functionCallId: toolCall.id, content: `${result}` })
-            this.notRespondedTools = (this.notRespondedTools || []).filter(item => item.id !== toolCall.id)
+            delete this.notRespondedTools[toolCall.id]
           } catch (actionError) {
             if (this.options.debugTools) {
               console.log(`AI ASSISTANT: Tool error: ${toolCall.name} => ${actionError.message}`)
@@ -193,7 +193,7 @@ export class Assistant extends ToolSet {
               functionCallId: toolCall.id,
               content: `ERROR: ${actionError.message}`,
             })
-            this.notRespondedTools = (this.notRespondedTools || []).filter(item => item.id !== toolCall.id)
+            delete this.notRespondedTools[toolCall.id]
           }
         }
       } else if ((response as ChatOutputMessage)?.content) {
@@ -282,7 +282,7 @@ export class Assistant extends ToolSet {
    * Internal implementation
    *
    ***************************************/
-  private notRespondedTools: { id: string; name: string }[] = null
+  private notRespondedTools: Record<string, string> = {}
 
   protected [isBusySymbol]: boolean = false
   protected [threadIdSymbol]: string = null
@@ -291,21 +291,23 @@ export class Assistant extends ToolSet {
   /**
    * Answer unresponded tools
    */
-  protected async answerUnrespondedTools() {
+  private async answerUnrespondedTools() {
     const threadId = await this.awaitThreadId()
-    if (this.notRespondedTools && this.notRespondedTools.length > 0) {
+    const notRespondedTools = Object.entries(this.notRespondedTools)
+    if (notRespondedTools && notRespondedTools.length > 0) {
       if (this.options.debugTools) {
-        console.log(`AI ASSISTANT: Not all tools were responded: ${this.notRespondedTools.map(item => `${item.name}`).join(', ')}`)
+        console.log(`AI ASSISTANT: Not all tools were responded: ${notRespondedTools.map(([, name]) => `${name}`).join(', ')}`)
       }
-      for (const tool of this.notRespondedTools) {
+      for (const tool of notRespondedTools) {
+        const [id, name] = tool
         await this.aiProvider.addMessageToThread(threadId, {
           role: 'tool',
-          functionCallId: tool.id,
+          functionCallId: id,
           content: `ERROR: There was some error when calling action. Not all tools were responded. Or prompt was interrupted.`,
         })
       }
       await this.aiProvider.executeThread(threadId)
-      this.notRespondedTools = null
+      this.notRespondedTools = {}
       // throw new Error(`Not all tools were responded: ${this.notRespondedTools.join(', ')}, will finsh them with error.`)
     }
   }

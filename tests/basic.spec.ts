@@ -66,6 +66,7 @@ describe('Basics', () => {
     openAI = new OpenAIMockup(['TOOL_CALL:slowTool', 'Mocked response 1', 'Mocked response 2']);
     assistantChat = new OpenAIAssistant(openAI as any, 'You are a helpful assistant.', {
       toolsets: [slowToolSet],
+      debugTools: true
     });
 
     // 1. Spustíme tool call, ale nečekáme na jeho dokončení
