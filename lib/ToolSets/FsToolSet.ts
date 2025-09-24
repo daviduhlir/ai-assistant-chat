@@ -135,7 +135,7 @@ export class FsToolSet extends ToolSet {
       })
       if (results.length === 0) return `No matches found for \`${query}\` in \`${path}\`.`
       return `**Matches for \`${query}\` in \`${path}\`:**\n\n| Line | Column | Content |\n|---|---|---|\n${results
-        .map(r => `| ${r.line} | ${r.column} | \`${r.match}\` |`)
+        .map(r => `| Line: ${r.line} | Position: ${r.column} | \`${r.match}\` |`)
         .join('\n')}`
     } catch (e: any) {
       return `❌ Error searching in file \`${path}\`: ${e.message || e}`
@@ -179,7 +179,7 @@ export class FsToolSet extends ToolSet {
       await walk.call(this, rootDir)
       if (results.length === 0) return `No matches found for \`${query}\` in \`${rootDir}\`.`
       return `**Matches for \`${query}\` in \`${rootDir}\`:**\n\n| File | Line | Column | Content |\n|---|---|---|---|\n${results
-        .map(r => `| \`${r.file}\` | ${r.line} | ${r.column} | \`${r.match}\` |`)
+        .map(r => `| \`${r.file}\` | Line: ${r.line} | Position: ${r.column} | \`${r.match}\` |`)
         .join('\n')}`
     } catch (e: any) {
       return `❌ Error searching in FS \`${rootDir}\`: ${e.message || e}`
