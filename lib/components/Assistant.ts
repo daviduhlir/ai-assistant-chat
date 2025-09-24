@@ -164,7 +164,7 @@ export class Assistant extends ToolSet {
 
       if ((response as ChatOutputToolCallMessage).functionCall) {
         const outputToolCall = response as ChatOutputToolCallMessage
-        outputToolCall.functionCall.forEach(toolCall => this.notRespondedTools[toolCall.id] = toolCall.name)
+        outputToolCall.functionCall.forEach(toolCall => (this.notRespondedTools[toolCall.id] = toolCall.name))
         // execute method!
         for (const toolCall of outputToolCall.functionCall) {
           if (!this[isAbleToContinueSymbol] || wasStopped) {
