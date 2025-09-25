@@ -2,7 +2,12 @@ import 'reflect-metadata'
 import { ToolSet } from '../components/ToolSet'
 import * as pathModule from 'path'
 
-export class FsToolSet extends ToolSet {
+/**
+ *
+ * Fs tool set basics
+ *
+ */
+export class FsToolBasicsSet extends ToolSet {
   constructor(readonly fs: typeof import('fs/promises')) {
     super()
   }
@@ -101,21 +106,6 @@ export class FsToolSet extends ToolSet {
       return `true`
     } catch {
       return `false`
-    }
-  }
-
-  @ToolSet.Callable('Replace lines in a file in a given range (start and end are inclusive, 1-based)')
-  public async changeLines(path: string, start: number, end: number, newContent: string): Promise<string> {
-    path = this.normalizePath(path)
-    try {
-      const content = await this.fs.readFile(path, 'utf8')
-      const lines = content.split(/\r?\n/)
-      const newLines = newContent.split(/\r?\n/)
-      lines.splice(start - 1, end - start + 1, ...newLines)
-      await this.fs.writeFile(path, lines.join('\n'), 'utf8')
-      return `✅ Lines ${start}-${end} in \`${path}\` replaced.`
-    } catch (e: any) {
-      return `❌ Error replacing lines in \`${path}\`: ${e.message || e}`
     }
   }
 
@@ -427,5 +417,91 @@ export class FsToolSet extends ToolSet {
     } catch (e: any) {
       return `❌ Error replacing in FS \`${rootDir}\`: ${e.message || e}`
     }
+  }
+
+  @ToolSet.Callable(`
+    Highlight lines around a search string in a file,
+    returns markdown with context, highlighted line starts with > ,
+    context is configurable by linesBefore and linesAfter (how much lines before and after),
+    occurrence is configurable (which occurrence to show starting from 1)
+  `)
+  public async searchInFileWithContext(path: string, query: string, linesBefore: number = 5, linesAfter: number = 5, occurrence: number = 1): Promise<string> {
+    path = this.normalizePath(path)
+    try {
+      const content = await this.fs.readFile(path, 'utf8')
+      const lines = content.split(/\r?\n/)
+      const results: { line: number; contextLines: string[]; contextLineNumbers: number[] }[] = []
+      lines.forEach((lineText, idx) => {
+        if (lineText.includes(query)) {
+          const start = Math.max(0, idx - linesBefore)
+          const end = Math.min(lines.length, idx + linesAfter + 1)
+          results.push({
+            line: idx + 1,
+            contextLines: lines.slice(start, end),
+            contextLineNumbers: Array.from({length: end - start}, (_, i) => start + i + 1)
+          })
+        }
+      })
+      if (results.length === 0) return `No matches found for \`${query}\` in \`${path}\`.`
+      if (occurrence < 1 || occurrence > results.length) return `Only ${results.length} matches found for \`${query}\` in \`${path}\`, cannot show occurrence #${occurrence}.`;
+      const r = results[occurrence - 1]
+      const contextTable = r.contextLines.map((line, i) => `${r.contextLineNumbers[i] === r.line ? '> ' : '  '}${r.contextLineNumbers[i]}: ${line}`).join('\n')
+      return [
+        `**Total matches:** ${results.length}`,
+        `**Showing occurrence:** ${occurrence} (at line ${r.line})`,
+        '',
+        '```',
+        contextTable,
+        '```'
+      ].join('\n')
+    } catch (e: any) {
+      return `❌ Error highlighting in file \`${path}\`: ${e.message || e}`
+    }
+  }
+}
+
+/**
+ * Working with lines
+ *
+ * Sometimes AI struggles to count lines, so thats why it's optional
+ */
+
+export class FsLinesToolSet extends ToolSet {
+  constructor(readonly fs: typeof import('fs/promises')) {
+    super()
+  }
+
+  protected normalizePath(path: string): string {
+    if (!path.startsWith('/')) {
+      return '/' + path
+    }
+    return path
+  }
+
+  @ToolSet.Callable('Replace lines in a file in a given range (start and end are inclusive, 1-based)')
+  public async changeLines(path: string, start: number, end: number, newContent: string): Promise<string> {
+    path = this.normalizePath(path)
+    try {
+      const content = await this.fs.readFile(path, 'utf8')
+      const lines = content.split(/\r?\n/)
+      const newLines = newContent.split(/\r?\n/)
+      lines.splice(start - 1, end - start + 1, ...newLines)
+      await this.fs.writeFile(path, lines.join('\n'), 'utf8')
+      return `✅ Lines ${start}-${end} in \`${path}\` replaced.`
+    } catch (e: any) {
+      return `❌ Error replacing lines in \`${path}\`: ${e.message || e}`
+    }
+  }
+}
+
+/**
+ *
+ * Fs tool set complete
+ *
+ */
+
+export class FsToolSet extends ToolSet {
+  constructor(readonly fs: typeof import('fs/promises'), includeLinesTools?: boolean) {
+    super([new FsToolBasicsSet(fs), ...(includeLinesTools ? [new FsLinesToolSet(fs)] : [])])
   }
 }
