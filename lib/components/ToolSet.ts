@@ -64,6 +64,7 @@ export class ToolSet {
         // Update target to point to the correct instance instead of prototype
         acc[key] = {
           ...toolSetCallables[key],
+          reference: toolSetCallables[key].reference.bind(toolSet),
           target: toolSet,
         }
       })
@@ -76,10 +77,4 @@ export class ToolSet {
       ...nestedCallables,
     }
   }
-
-  /************************************
-   *
-   * Internal implementation
-   *
-   ************************************/
 }
