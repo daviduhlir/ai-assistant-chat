@@ -123,7 +123,7 @@ export class Assistant extends ToolSet {
    * This will make the prompt method to finish as soon as possible
    */
   public async breakActualPrompt() {
-    await this.answerUnrespondedTools()
+    await this.answerUnrespondedTools(`Your task was interrupted by prompt.`)
     this[isBusySymbol] = false
     this[isAbleToContinueSymbol] = false
   }
@@ -208,7 +208,7 @@ export class Assistant extends ToolSet {
       }
     }
     this[isBusySymbol] = false
-    await this.answerUnrespondedTools()
+    await this.answerUnrespondedTools('Error: too many attempts to get a valid response, all your not responded tools will be responded.')
     if (this[isAbleToContinueSymbol]) {
       throw new Error(`Too many attempts to get a valid response`)
     } else {
@@ -291,7 +291,7 @@ export class Assistant extends ToolSet {
   /**
    * Answer unresponded tools
    */
-  private async answerUnrespondedTools() {
+  private async answerUnrespondedTools(reason: string) {
     const threadId = await this.awaitThreadId()
     const notRespondedTools = Object.entries(this.notRespondedTools)
     if (notRespondedTools && notRespondedTools.length > 0) {
@@ -303,7 +303,7 @@ export class Assistant extends ToolSet {
         await this.aiProvider.addMessageToThread(threadId, {
           role: 'tool',
           functionCallId: id,
-          content: `ERROR: There was some error when calling action. Not all tools were responded. Or prompt was interrupted.`,
+          content: reason,
         })
       }
       await this.aiProvider.executeThread(threadId)
