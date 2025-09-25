@@ -425,7 +425,13 @@ export class FsToolBasicsSet extends ToolSet {
     context is configurable by linesBefore and linesAfter (how much lines before and after),
     occurrence is configurable (which occurrence to show starting from 1)
   `)
-  public async searchInFileWithContext(path: string, query: string, linesBefore: number = 5, linesAfter: number = 5, occurrence: number = 1): Promise<string> {
+  public async searchInFileWithContext(
+    path: string,
+    query: string,
+    linesBefore: number = 5,
+    linesAfter: number = 5,
+    occurrence: number = 1,
+  ): Promise<string> {
     path = this.normalizePath(path)
     try {
       const content = await this.fs.readFile(path, 'utf8')
@@ -438,21 +444,24 @@ export class FsToolBasicsSet extends ToolSet {
           results.push({
             line: idx + 1,
             contextLines: lines.slice(start, end),
-            contextLineNumbers: Array.from({length: end - start}, (_, i) => start + i + 1)
+            contextLineNumbers: Array.from({ length: end - start }, (_, i) => start + i + 1),
           })
         }
       })
       if (results.length === 0) return `No matches found for \`${query}\` in \`${path}\`.`
-      if (occurrence < 1 || occurrence > results.length) return `Only ${results.length} matches found for \`${query}\` in \`${path}\`, cannot show occurrence #${occurrence}.`;
+      if (occurrence < 1 || occurrence > results.length)
+        return `Only ${results.length} matches found for \`${query}\` in \`${path}\`, cannot show occurrence #${occurrence}.`
       const r = results[occurrence - 1]
-      const contextTable = r.contextLines.map((line, i) => `${r.contextLineNumbers[i] === r.line ? '> ' : '  '}${r.contextLineNumbers[i]}: ${line}`).join('\n')
+      const contextTable = r.contextLines
+        .map((line, i) => `${r.contextLineNumbers[i] === r.line ? '> ' : '  '}${r.contextLineNumbers[i]}: ${line}`)
+        .join('\n')
       return [
         `**Total matches:** ${results.length}`,
         `**Showing occurrence:** ${occurrence} (at line ${r.line})`,
         '',
         '```',
         contextTable,
-        '```'
+        '```',
       ].join('\n')
     } catch (e: any) {
       return `❌ Error highlighting in file \`${path}\`: ${e.message || e}`
