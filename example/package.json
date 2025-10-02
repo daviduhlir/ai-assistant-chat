@@ -6,6 +6,7 @@
   "scripts": {
     "build": "rimraf ./build && tsc",
     "start:openai": "npm run build && node --enable-source-maps ./build/index.openai.js",
+    "start:llama": "npm run build && node --enable-source-maps ./build/index.llama.js",
     "start:fs-openai": "npm run build && node --enable-source-maps ./build/index.filesTest.openai.js",
     "start:anthropic": "npm run build && node --enable-source-maps ./build/index.anthropic.js",
     "inspect:openai": "npm run build && node --enable-source-maps --inspect ./build/index.openai.js",
