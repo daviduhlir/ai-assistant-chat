@@ -1,0 +1,1 @@
+Všechny naše konverze budou probíhat v češtině.

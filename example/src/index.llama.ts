@@ -1,9 +1,9 @@
 import OpenAI from 'openai'
-import { OpenAIAssistant, Assistant, LlamaProvider } from '@david.uhlir/ai-assistant-chat'
+import { OpenAIAssistant, Assistant, LlamaChatProvider } from '@david.uhlir/ai-assistant-chat'
 
 async function main() {
   // Create an instance of OpenAI client
-  const llama = new LlamaProvider({
+  const llama = new LlamaChatProvider({
     baseUrl: 'http://localhost:5000',
     model: 'meta-llama-3-8b',
     temperature: 0.7,

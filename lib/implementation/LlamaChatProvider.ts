@@ -1,9 +1,10 @@
-import OpenAI from 'openai'
 import { ChatInputMessage, ChatMessageInputBufferContent, AIProviderFunction, ChatExecutionResult } from '../interfaces'
 import { AIProvider } from '../components/AIProvider'
 import { randomHash } from '../utils'
 
 export interface LlamaChatProviderOptions {
+  apiKey?: string
+  baseUrl: string
   model: string
   temperature: number
   summarizeAfter?: number
@@ -11,7 +12,8 @@ export interface LlamaChatProviderOptions {
   maxTokens?: number
 }
 
-export const LLAMA_CHAT_PROVIDER_DEFAULT_OPTIONS: LlamaChatProviderOptions = {
+export const LLAMA_PROVIDER_DEFAULT_OPTIONS: Partial<LlamaChatProviderOptions> = {
+  baseUrl: 'http://localhost:11434/v1',
   model: 'llama-3.3-70b-versatile',
   temperature: 0.2,
   summarizeAfter: 10,
@@ -19,27 +21,48 @@ export const LLAMA_CHAT_PROVIDER_DEFAULT_OPTIONS: LlamaChatProviderOptions = {
   maxTokens: 1000,
 }
 
+export interface LlamaMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string | { type: string; text?: string; image_url?: { url: string } }[]
+}
+
+export interface LlamaResponse {
+  id: string
+  object: string
+  created: number
+  model: string
+  choices: {
+    index: number
+    message: {
+      role: string
+      content: string
+    }
+    finish_reason: string
+  }[]
+  usage: {
+    prompt_tokens: number
+    completion_tokens: number
+    total_tokens: number
+  }
+}
+
 /**
- * @class LlamaChatProvider
- * @brief Implementation of the AIProvider interface for Llama.
+ * @class LlamaProvider
+ * @brief Implementation of the AIProvider interface for Llama using native fetch.
  *
- * The `LlamaChatProvider` class integrates with Llama's API (OpenAI-compatible) to handle chat interactions.
+ * The `LlamaProvider` class integrates with Llama's API using direct HTTP calls via fetch.
  * It extends the `AIProvider` abstract class and provides a concrete implementation
  * of the `executeThread` method.
  *
  * @details
- * - This class uses OpenAI-compatible API to send messages and retrieve responses.
+ * - This class uses fetch to make HTTP requests to Llama API endpoints.
  * - Unlike standard OpenAI, Llama models don't support native tool calling.
  * - Tools are implemented using text parsing: model responds with /tool:toolname param1 param2
  * - Tool responses are sent back as /tool:toolname:response "result"
  * - It supports configurable options such as the model and temperature.
  */
 export class LlamaChatProvider extends AIProvider {
-  constructor(
-    protected openAI: OpenAI,
-    protected options: LlamaChatProviderOptions = LLAMA_CHAT_PROVIDER_DEFAULT_OPTIONS,
-    readonly initialMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [],
-  ) {
+  constructor(protected options: LlamaChatProviderOptions, readonly initialMessages: LlamaMessage[] = []) {
     super()
   }
 
@@ -49,8 +72,8 @@ export class LlamaChatProvider extends AIProvider {
     string,
     {
       instructions: string
-      messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
-      history: OpenAI.Chat.Completions.ChatCompletionMessageParam[]
+      messages: LlamaMessage[]
+      history: LlamaMessage[]
     }
   > = new Map()
   protected SUMMARIZE_PROMPT = (summarizeKeepLastMessages: number) => `
@@ -136,14 +159,28 @@ export class LlamaChatProvider extends AIProvider {
     if (!(result as any).message?.timestamp) {
       ;(result as any).message.timestamp = Date.now()
     }
-    thread.messages.push(result.message)
-    thread.history.push(result.message)
+
+    const assistantMessage: LlamaMessage = {
+      role: 'assistant',
+      content: result.message.content,
+    }
+    thread.messages.push(assistantMessage)
+    thread.history.push(assistantMessage)
 
     // Parse tool calls from message content
-    const toolCalls = this.parseToolCalls(result.message.content as string)
+    const toolCalls = this.parseToolCalls(result.message.content)
 
     if (toolCalls.length > 0) {
       this.toolInProgress = true
+
+      // Inform the model about assigned IDs for each tool call
+      const idsMessage: LlamaMessage = {
+        role: 'user',
+        content: toolCalls.map(tc => `Tool call ${tc.name} assigned ID: ${tc.id}`).join('\n'),
+      }
+      thread.messages.push(idsMessage)
+      thread.history.push(idsMessage)
+
       return {
         role: 'assistant',
         timestamp: Date.now(),
@@ -159,7 +196,11 @@ export class LlamaChatProvider extends AIProvider {
       }
     }
     this.toolInProgress = false
-    return result.message
+    return {
+      role: 'assistant',
+      content: result.message.content,
+      timestamp: Date.now(),
+    }
   }
 
   /**
@@ -192,9 +233,6 @@ export class LlamaChatProvider extends AIProvider {
       found = history.filter(message => {
         if (typeof message?.content === 'string') {
           return message.content.toLowerCase().includes(text.toLowerCase())
-        } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
-          const bufferMessage: ChatMessageInputBufferContent = message.content as any
-          return bufferMessage.message?.toLowerCase().includes(text.toLowerCase())
         }
       })
     }
@@ -212,7 +250,7 @@ export class LlamaChatProvider extends AIProvider {
     }
     return found
       .map(message => {
-        const content = typeof message.content === 'string' ? (message.content as string) : `${(message.content as any).message} \n [binnary]`
+        const content = typeof message.content === 'string' ? message.content : '[complex content]'
         return `${message.role}: ${content}`
       })
       .join('\n')
@@ -223,7 +261,7 @@ export class LlamaChatProvider extends AIProvider {
    * @param threadId
    * @returns
    */
-  public getMessages(threadId: string): OpenAI.Chat.Completions.ChatCompletionMessageParam[] {
+  public getMessages(threadId: string): LlamaMessage[] {
     const thread = this.threads.get(threadId)
     if (!thread) {
       throw new Error(`Thread with ID ${threadId} not found.`)
@@ -256,49 +294,84 @@ export class LlamaChatProvider extends AIProvider {
     const toolDescriptions = this.tools
       .map(tool => {
         const params = tool.parameters.map(p => `${p.name} (${p.type}${p.default ? `, default: ${p.default}` : ''})`).join(', ')
-        return `- /tool:${tool.name} ${params}\n  ${tool.description}`
+        return `  * ${tool.name}: ${tool.description}\n    Parameters: ${params || 'none'}`
       })
       .join('\n')
 
     return `${baseInstructions}
 
-Available tools:
+IMPORTANT: You have access to the following tools:
 ${toolDescriptions}
 
-To call a tool, respond with: /tool:toolname param1 param2 ...
-Parameters can be quoted if they contain spaces: /tool:toolname "param with spaces" param2
-You will receive responses in format: /tool:toolname:response "result"`
+TOOL CALLING RULES:
+1. Tools are OPTIONAL - only use them when necessary to fulfill the user's request
+2. You can have normal conversations without calling any tools
+3. When you DO need to call a tool:
+   - Respond ONLY with the tool call line: /tool:toolname param1 param2 param3
+   - Use quotes for parameters with spaces: /tool:toolname "param with spaces" value2
+   - Do NOT add explanations or any other text in the same response
+4. MESSAGE SEQUENCE AFTER TOOL CALL:
+   a) You call: /tool:toolname params
+   b) System assigns and tells you: "Tool call toolname assigned ID: abc123"
+   c) System sends result: "Tool result for ID abc123: result_data"
+   d) Then you respond normally with the result
+5. You MUST wait for both messages (ID assignment + result) before responding
+
+EXAMPLES WITH TOOLS:
+User: What is the magic number?
+Assistant: /tool:getMagicNumber
+System: Tool call getMagicNumber assigned ID: abc123
+System: Tool result for ID abc123: 42
+Assistant: The magic number is 42
+
+User: Calculate 5 plus 10
+Assistant: /tool:calculate 5 10
+System: Tool call calculate assigned ID: xyz789
+System: Tool result for ID xyz789: 15
+Assistant: The result is 15
+
+EXAMPLES WITHOUT TOOLS (normal conversation):
+User: Hello!
+Assistant: Hi there! How can I help you today?
+
+User: How are you?
+Assistant: I'm doing well, thank you for asking! What can I do for you?
+
+Remember: Use tools only when needed. For normal conversation, just respond naturally!`
   }
 
   /**
    * Parse tool calls from message content
-   * Format: /tool:toolname param1 param2 or /tool:toolname "param1" "param2"
+   * Format: /tool:toolname param1 param2 or /tool:toolname "param1" "param2" or /tool:toolname (no params)
    */
   protected parseToolCalls(content: string): Array<{ id: string; name: string; arguments: any[] }> {
     if (!content || typeof content !== 'string') {
       return []
     }
 
-    const toolCallRegex = /\/tool:(\w+)\s+(.*?)(?=\n|$)/g
+    const toolCallRegex = /\/tool:(\w+)(?:\s+(.+?))?(?=\n|$)/g
     const toolCalls: Array<{ id: string; name: string; arguments: any[] }> = []
     let match: RegExpExecArray | null
 
     while ((match = toolCallRegex.exec(content)) !== null) {
       const toolName = match[1]
-      const argsString = match[2].trim()
+      const argsString = match[2]?.trim() || ''
 
       // Parse arguments - support both quoted and unquoted
       const args: any[] = []
-      const quotedRegex = /"([^"]*)"|'([^']*)'|(\S+)/g
-      let argMatch: RegExpExecArray | null
 
-      while ((argMatch = quotedRegex.exec(argsString)) !== null) {
-        const arg = argMatch[1] || argMatch[2] || argMatch[3]
-        // Try to parse as JSON/number/boolean
-        try {
-          args.push(JSON.parse(arg))
-        } catch {
-          args.push(arg)
+      if (argsString) {
+        const quotedRegex = /"([^"]*)"|'([^']*)'|(\S+)/g
+        let argMatch: RegExpExecArray | null
+
+        while ((argMatch = quotedRegex.exec(argsString)) !== null) {
+          const arg = argMatch[1] || argMatch[2] || argMatch[3]
+          // Try to parse as JSON/number/boolean
+          try {
+            args.push(JSON.parse(arg))
+          } catch {
+            args.push(arg)
+          }
         }
       }
 
@@ -324,25 +397,52 @@ You will receive responses in format: /tool:toolname:response "result"`
   }
 
   /**
-   * Execute chat internaly
+   * Execute chat using fetch
    * @param messages
    * @returns
    */
-  protected async runCompletion(
-    messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-  ): Promise<{ message: OpenAI.Chat.Completions.ChatCompletionMessage; usage: number }> {
-    // Don't pass tools to the API since Llama doesn't support them natively
-    const response = await this.openAI.chat.completions.create({
-      model: this.options.model,
-      temperature: this.options.temperature,
-      messages,
-      max_tokens: this.options.maxTokens,
+  protected async runCompletion(messages: LlamaMessage[]): Promise<{ message: { role: string; content: string }; usage: number }> {
+    // Fix consecutive assistant messages - Llama doesn't allow 2+ assistant messages in a row
+    const fixedMessages: LlamaMessage[] = []
+    for (let i = 0; i < messages.length; i++) {
+      fixedMessages.push(messages[i])
+
+      // If current is assistant and next is also assistant, insert dummy user message
+      if (messages[i].role === 'assistant' && messages[i + 1]?.role === 'assistant') {
+        fixedMessages.push({ role: 'user', content: 'Continue.' })
+      }
+    }
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    }
+
+    if (this.options.apiKey) {
+      headers['Authorization'] = `Bearer ${this.options.apiKey}`
+    }
+
+    const response = await fetch(`${this.options.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: this.options.model,
+        temperature: this.options.temperature,
+        messages: fixedMessages,
+        max_tokens: this.options.maxTokens,
+      }),
     })
 
-    this.usage += response.usage.total_tokens
+    if (!response.ok) {
+      const errorText = await response.text()
+      throw new Error(`Llama API error: ${response.status} ${response.statusText} - ${errorText}`)
+    }
+
+    const data: LlamaResponse = await response.json()
+
+    this.usage += data.usage.total_tokens
     return {
-      message: response.choices[0].message,
-      usage: response.usage.total_tokens,
+      message: data.choices[0].message,
+      usage: data.usage.total_tokens,
     }
   }
 
@@ -372,32 +472,34 @@ You will receive responses in format: /tool:toolname:response "result"`
   }
 
   /**
-   * Transform input message to OpenAI format
+   * Transform input message to Llama format
    * Tool responses need special handling for Llama
    */
-  protected static transformInputMessage(message: ChatInputMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
-    // Handle tool responses - convert to user message with /tool:toolname:response format
+  protected static transformInputMessage(message: ChatInputMessage): LlamaMessage {
+    // Handle tool responses - convert to user message with tool result for specific ID
     if (message.role === 'tool' && message.functionCallId) {
-      const toolName = message.functionCallId.split(':')[0] || 'unknown'
+      const content = typeof message.content === 'string' ? message.content : JSON.stringify(message.content)
       return {
         role: 'user',
-        content: `/tool:${toolName}:response "${typeof message.content === 'string' ? message.content : JSON.stringify(message.content)}"`,
+        content: `Tool result for ID ${message.functionCallId}: ${content}`,
       }
     }
 
     if (typeof message.content === 'string') {
       return {
-        role: message.role as any,
+        role: message.role as 'system' | 'user' | 'assistant',
         content: message.content,
       }
     } else if (Buffer.isBuffer((message.content as any)?.buffer)) {
       const bufferMessage: ChatMessageInputBufferContent = message.content as any
       return {
-        role: message.role as any,
-        content: {
-          type: 'image_url',
-          image_url: { url: `data:image/jpeg;base64,${bufferMessage.buffer.toString('base64')}` },
-        } as any,
+        role: message.role as 'system' | 'user' | 'assistant',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: `data:image/jpeg;base64,${bufferMessage.buffer.toString('base64')}` },
+          },
+        ],
       }
     } else {
       throw new Error(`Invalid message content type: ${typeof message.content}`)
