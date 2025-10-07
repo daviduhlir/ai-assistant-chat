@@ -210,7 +210,7 @@ export class Assistant extends ToolSet {
         return outputMessage.content
       }
     }
-    await this.answerUnrespondedTools('Error: too many attempts to get a valid response, all your not responded tools will be responded.')
+    await this.answerUnrespondedTools('Error: too many attempts to get a valid response, all not responded tools was interrupted.')
     if (this[isAbleToContinueSymbol]) {
       throw new Error(`Too many attempts to get a valid response`)
     } else {
