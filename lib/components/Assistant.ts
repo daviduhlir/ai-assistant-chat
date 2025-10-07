@@ -124,7 +124,6 @@ export class Assistant extends ToolSet {
    */
   public async breakActualPrompt() {
     await this.answerUnrespondedTools(`Your task was interrupted by prompt.`)
-    this[isBusySymbol] = false
     this[isAbleToContinueSymbol] = false
   }
 
@@ -132,10 +131,14 @@ export class Assistant extends ToolSet {
    * @brief Sends a prompt to the assistant and processes the response.
    * @param prompt The user prompt to send.
    * @param limit The maximum number of iterations to attempt.
+   * @param force Whether to force the prompt even if the assistant is busy - will finish all not responded tools with error.
    * @returns The assistant's response as a string.
    * @throws An error if the maximum number of iterations is exceeded.
    */
-  public async prompt(prompt: ChatMessageInputContent, limit: number = 10): Promise<string> {
+  public async prompt(prompt: ChatMessageInputContent, limit: number = 10, force: boolean = false): Promise<string> {
+    if (force) {
+      await this.answerUnrespondedTools('Your task was interrupted by new prompt.')
+    }
     if (this[isBusySymbol]) {
       throw new Error(`Assistant is busy`)
     }
@@ -207,7 +210,6 @@ export class Assistant extends ToolSet {
         return outputMessage.content
       }
     }
-    this[isBusySymbol] = false
     await this.answerUnrespondedTools('Error: too many attempts to get a valid response, all your not responded tools will be responded.')
     if (this[isAbleToContinueSymbol]) {
       throw new Error(`Too many attempts to get a valid response`)
@@ -306,10 +308,9 @@ export class Assistant extends ToolSet {
           content: reason,
         })
       }
-      await this.aiProvider.executeThread(threadId)
       this.notRespondedTools = {}
-      // throw new Error(`Not all tools were responded: ${this.notRespondedTools.join(', ')}, will finsh them with error.`)
     }
+    this[isBusySymbol] = false
   }
 
   /**

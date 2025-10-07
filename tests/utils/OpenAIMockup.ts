@@ -1,5 +1,8 @@
+
 import { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 
+// Vrátí pole neuzavřených tool call ID pro dané pole messages (stateless, for completions)
+// Must be defined before chat property to be available on 'this'
 export class OpenAIMockup {
   private responses: string[]
   private currentIndex: number
@@ -28,30 +31,12 @@ export class OpenAIMockup {
         }
         this.lastMessages = messages
 
-        // --- TOOL CALL BLOCKING LOGIC ---
-        // We use a static property to track pending tool calls for chat completions (per mock instance)
-        if (!(this as any)._pendingToolCalls) {
-          (this as any)._pendingToolCalls = [];
-        }
-        const pendingToolCalls: string[] = (this as any)._pendingToolCalls;
-
-        // If the last message is a user message and there are pending tool calls, block it
+        // --- TOOL CALL BLOCKING LOGIC (STATELESS, LIKE OPENAI) ---
+        // Block if there are any unresponded tool calls in the current message array
+        const notResponded = this.getNotRespondedToolsFromMessages(messages);
         const lastMsg = messages[messages.length - 1];
-        if (lastMsg && lastMsg.role === 'user' && pendingToolCalls.length > 0) {
+        if (lastMsg && lastMsg.role === 'user' && notResponded.length > 0) {
           throw new Error('Cannot add user message: There are pending tool calls that must be answered first!');
-        }
-        // Pokud je poslední zpráva od toolu, smaž pending tool call podle functionCallId NEBO tool_call_id
-        if (lastMsg && lastMsg.role === 'tool') {
-          const fnId = (lastMsg as any).functionCallId;
-          const toolCallId = (lastMsg as any).tool_call_id;
-          if (fnId) {
-            const idx = pendingToolCalls.indexOf(fnId);
-            if (idx !== -1) pendingToolCalls.splice(idx, 1);
-          }
-          if (toolCallId) {
-            const idx = pendingToolCalls.indexOf(toolCallId);
-            if (idx !== -1) pendingToolCalls.splice(idx, 1);
-          }
         }
 
         // --- TOOL SUPPORT PRO COMPLETION CHAT ---
@@ -64,7 +49,6 @@ export class OpenAIMockup {
           // Pokud poslední zpráva je user a obsahuje usetool, udělej tool call
           const toolName = toolCallMatch[1];
           const toolCallId = `mock-tool-id-${toolName}`;
-          pendingToolCalls.push(toolCallId);
           return {
             choices: [
               {
@@ -185,7 +169,8 @@ export class OpenAIMockup {
         if (!thread) {
           throw new Error(`Thread with ID ${thread_id} not found`)
         }
-        if (thread.pendingToolCalls.length > 0) {
+        const notResponded = this.getNotRespondedTools(thread_id)
+        if (notResponded.length > 0) {
           throw new Error('Cannot execute thread: There are pending tool calls that must be answered first!')
         }
 
@@ -318,5 +303,57 @@ export class OpenAIMockup {
         },
       },
     },
+  }
+
+  // Vrátí pole neuzavřených tool call ID pro daný thread
+  private getNotRespondedTools(threadId: string): string[] {
+    const thread = this.threads.get(threadId)
+    if (!thread) return []
+    // Najdi všechny assistant messages s functionCall
+    const pending: string[] = []
+    const toolResponses = new Set(
+      thread.messages.filter(m => m.role === 'tool' && (m as any).tool_call_id)
+        .map(m => (m as any).tool_call_id)
+    )
+    thread.messages.forEach(m => {
+      if (m.role === 'assistant' && Array.isArray((m as any).functionCall)) {
+        for (const fc of (m as any).functionCall) {
+          if (fc.id && !toolResponses.has(fc.id)) {
+            pending.push(fc.id)
+          }
+        }
+      } else if (m.role === 'assistant' && (m as any).functionCall && (m as any).functionCall.id) {
+        const fc = (m as any).functionCall
+        if (!toolResponses.has(fc.id)) {
+          pending.push(fc.id)
+        }
+      }
+    })
+    return pending
+  }
+
+  // Vrátí pole neuzavřených tool call ID pro dané pole messages (stateless, for completions)
+  private getNotRespondedToolsFromMessages(messages: ChatCompletionMessageParam[]): string[] {
+    // Najdi všechny assistant messages s functionCall
+    const pending: string[] = [];
+    const toolResponses = new Set(
+      messages.filter(m => m.role === 'tool' && (m as any).tool_call_id)
+        .map(m => (m as any).tool_call_id)
+    );
+    messages.forEach(m => {
+      if (m.role === 'assistant' && Array.isArray((m as any).functionCall)) {
+        for (const fc of (m as any).functionCall) {
+          if (fc.id && !toolResponses.has(fc.id)) {
+            pending.push(fc.id);
+          }
+        }
+      } else if (m.role === 'assistant' && (m as any).functionCall && (m as any).functionCall.id) {
+        const fc = (m as any).functionCall;
+        if (!toolResponses.has(fc.id)) {
+          pending.push(fc.id);
+        }
+      }
+    });
+    return pending;
   }
 }

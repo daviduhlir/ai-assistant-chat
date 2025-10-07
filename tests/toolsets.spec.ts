@@ -48,7 +48,7 @@ describe('ToolSets', () => {
     }
 
     const slowToolSet = new SlowToolSet();
-    openAI = new OpenAIMockup(['TOOL_CALL:slowTool', 'Mocked response 1', 'Mocked response 2']);
+    openAI = new OpenAIMockup(['Mocked response 1', 'Mocked response 2']);
     assistantChat = new OpenAIAssistant(openAI as any, 'You are a helpful assistant.', {
       toolsets: [slowToolSet],
     });
